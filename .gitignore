@@ -43,9 +43,18 @@ checkpoints/
 *.pt
 *.pth
 
+# LaTeX build artifacts
+report/*.aux
+report/*.log
+report/*.out
+report/*.nav
+report/*.snm
+report/*.toc
+
 # Outputs (keep figures for report, exclude the rest)
 outputs/*.json
 outputs/*.csv
 outputs/*.png
+outputs/*.txt
 outputs/baseline_comparison.png
 !outputs/figures/

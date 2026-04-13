@@ -45,7 +45,7 @@ final_project/
 ## Tasks Implemented
 
 ### Task 1: Synthetic Dataset Generation
-999 paired blurry/sharp images from 200+ clean plates with three blur types (Gaussian, motion, defocus), additive noise, and JPEG compression.
+3,003 paired blurry/sharp images from 1,001 clean plates with three blur types (Gaussian, motion, defocus), additive noise, and JPEG compression.
 
 ### Task 2: Blur Parameter Estimation via FFT
 Blind estimation of blur angle and length from the Fourier magnitude spectrum. Dark bands perpendicular to blur direction reveal the angle; their spacing gives kernel length.

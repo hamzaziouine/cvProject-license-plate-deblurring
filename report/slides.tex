@@ -125,11 +125,11 @@ $$y = k \ast x + n$$
 \toprule
 Split & Images \\
 \midrule
-Train & 699 \\
-Validation & 149 \\
-Test & 151 \\
+Train & 2\,100 \\
+Validation & 450 \\
+Test & 453 \\
 \midrule
-\textbf{Total} & \textbf{999} \\
+\textbf{Total} & \textbf{3\,003} \\
 \bottomrule
 \end{tabular}
 \end{column}
@@ -276,25 +276,23 @@ where $\text{TV}(\hat{x}) = \sum_{i,j} \sqrt{(\nabla_h \hat{x})^2 + (\nabla_v \h
 \toprule
 \textbf{Method} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
 \midrule
-Blurry (input) & 23.30 & 0.587 \\
-Inverse filter & --- & --- \\
-Wiener (estimated PSF) & 21.99 & 0.549 \\
-Unsupervised Wiener & --- & --- \\
-Richardson--Lucy & --- & --- \\
-CLS filter & --- & --- \\
+Blurry (input) & 22.77 & 0.566 \\
+Inverse filter & 10.33 & 0.013 \\
+Wiener (estimated PSF) & 15.74 & 0.226 \\
+Unsupervised Wiener & 12.11 & 0.103 \\
+Richardson--Lucy ($n$=30) & 12.43 & 0.173 \\
+CLS filter ($\gamma$=0.01) & 11.02 & 0.043 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \vspace{0.3cm}
-\textbf{Key observations:}
+\textbf{Key finding:}
 \begin{itemize}
-  \item Wiener with estimated PSF degrades quality (PSF mismatch sensitivity)
-  \item Richardson--Lucy and CLS expected to be more robust to PSF estimation errors
-  \item Full evaluation across all methods available in the project notebook
+  \item All methods score below blurry baseline due to blind PSF estimation errors
+  \item Wiener filter is the best performer (15.74\,dB)
+  \item With \textbf{known PSF}, Wiener \textit{improves} by +2.2\,dB --- the bottleneck is estimation, not the methods
 \end{itemize}
-
-\small{\textit{Note: --- indicates values computed in the evaluation notebook; see notebook for full results.}}
 \end{frame}
 
 % ---- Slide 12: Visual Comparison ----

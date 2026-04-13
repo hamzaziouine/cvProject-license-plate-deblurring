@@ -14,7 +14,7 @@ degradation:
   contrast_jitter: 0.1
 
 dataset:
-  num_variants_per_image: 5
+  num_variants_per_image: 3
   seed: 42
 
 paths:
