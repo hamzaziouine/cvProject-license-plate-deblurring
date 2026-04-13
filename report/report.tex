@@ -229,7 +229,7 @@ CLS filter        & 10.26 & 11.04 & 11.75 & 0.033 & 0.038 & 0.059 \\
 \label{tab:pertype}
 \end{table}
 
-An unexpected observation: the Wiener filter actually achieves its \textit{highest} PSNR on defocus-blurred images (16.72\,dB) rather than motion-blurred images (14.64\,dB). This counter-intuitive result arises because defocus-blurred images retain more high-frequency content than motion-blurred images, so even with a mismatched PSF, the regularised deconvolution does not amplify noise as severely.
+An unexpected observation: the Wiener filter actually achieves its \textit{highest} PSNR on defocus-blurred images (16.72\,dB) rather than motion-blurred images (14.64\,dB). This counter-intuitive result is explained by the nature of PSF mismatch: motion blur produces directional nulls in the frequency spectrum, and small errors in the estimated angle or length cause deconvolution to amplify noise at incorrect null locations. Defocus blur, being isotropic, does not exhibit this directional sensitivity---the mismatched motion PSF applies a mild, non-destructive correction rather than a catastrophic directional inversion.
 
 \subsection{Oracle PSF Validation}
 
@@ -250,6 +250,10 @@ Noisy blur, oracle PSF   & 21.08 & $+$2.17 vs blurry (18.91) \\
 \end{table}
 
 This confirms that the Wiener filter \textit{does} improve quality when the PSF is accurately known, even in the presence of noise. The gap between oracle and blind performance ($+$2.2\,dB vs.\ $-$7\,dB) quantifies the cost of blind estimation and underscores the importance of PSF accuracy in classical deconvolution.
+
+\subsection{Effect of TV Post-Processing}
+
+Applying Total Variation denoising after deconvolution provides modest improvements by suppressing ringing artifacts. With $\lambda = 0.05$, TV denoising improves SSIM while preserving PSNR, confirming that it smooths oscillatory artifacts without destroying recovered detail. The effect is most pronounced after Richardson--Lucy and CLS, which are the methods most prone to ringing due to their iterative and Laplacian-based regularisation, respectively.
 
 \subsection{Visual Comparison}
 
@@ -273,6 +277,20 @@ This project integrates techniques from all three laboratory sessions:
 
   \item \textbf{Lab~3 --- Edge Detection:} The CLS filter uses the Laplacian operator---the same second-derivative kernel used for edge detection---as its regulariser. By penalising the Laplacian norm, CLS encourages solutions where edges are sharp and flat regions are smooth. We also use Canny and Sobel edge maps on blurry vs.\ restored images as a visual quality measure: strong, continuous edges indicate successful restoration.
 \end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../outputs/figures/fft_analysis.png}
+\caption{FFT magnitude spectra of blurry, deblurred, and ground-truth images. Blur attenuates high-frequency components (outer regions); deconvolution partially recovers them. This directly applies frequency-domain analysis from Lab~2.}
+\label{fig:fft}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../outputs/figures/edge_comparison.png}
+\caption{Canny and Sobel edge maps for blurry, deblurred, and clean images. Blur weakens gradient responses; deconvolution restores detectable edge structure. This connects to Lab~3 edge detection concepts.}
+\label{fig:edges}
+\end{figure}
 
 % ============================================================
 \section{Challenges and Limitations}

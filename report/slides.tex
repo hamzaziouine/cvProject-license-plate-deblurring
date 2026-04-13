@@ -44,9 +44,9 @@
 \end{itemize}
 
 \vspace{0.5cm}
-\textbf{Impact:} OCR systems fail on blurry plates
+\textbf{Impact:} OCR systems frequently fail on blurry plates
 \begin{itemize}
-  \item Only \textbf{33\%} of blurry plates are readable by OCR
+  \item Blurry plates are often unreadable by automated OCR
 \end{itemize}
 \end{column}
 \begin{column}{0.4\textwidth}
@@ -80,12 +80,12 @@ $$y = k \ast x + n$$
 \end{center}
 
 \vspace{0.5cm}
-\textbf{Targets:}
+\textbf{Objectives:}
 \begin{itemize}
-  \item Improve PSNR and SSIM over blurry input using classical methods
-  \item Compare multiple deconvolution approaches (Wiener, Richardson--Lucy, CLS)
-  \item Improve OCR readability of blurry plates
-  \item All methods rooted in classical computer vision techniques
+  \item Evaluate classical deconvolution under blind PSF estimation on realistic degraded plates
+  \item Compare five deconvolution approaches (Inverse, Wiener, Unsup.\ Wiener, RL, CLS)
+  \item Quantify the impact of PSF estimation accuracy on restoration quality
+  \item Connect all methods to Lab~1--3 course concepts
 \end{itemize}
 \end{frame}
 
