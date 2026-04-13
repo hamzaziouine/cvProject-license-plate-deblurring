@@ -1,0 +1,28 @@
+blur:
+  gaussian:
+    sigma_range: [1.0, 5.0]
+  motion:
+    length_range: [5, 25]
+    angle_range: [0, 360]
+  defocus:
+    radius_range: [3, 10]
+
+degradation:
+  noise_sigma_range: [5, 15]
+  jpeg_quality_range: [50, 85]
+  brightness_jitter: 0.1
+  contrast_jitter: 0.1
+
+dataset:
+  num_variants_per_image: 5
+  seed: 42
+
+paths:
+  clean_dir: "data/clean_plates"
+  output_dir: "data/synthetic"
+  splits_dir: "data/splits"
+
+split_ratios:
+  train: 0.7
+  val: 0.15
+  test: 0.15

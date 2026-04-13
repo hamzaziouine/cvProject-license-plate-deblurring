@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# AI/tooling artifacts
+.planning/
+.omc/
+.claude/
+Computer vision project/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data (too large for git)
+data/synthetic/blurry/
+data/synthetic/sharp/
+data/synthetic/kernels/
+data/clean_plates/*.jpg
+data/clean_plates/*.JPG
+data/clean_plates/*.jpeg
+data/clean_plates/*.png
+data/3rd party data/
+
+# Keep sample images for submission
+!data/samples/
+
+# Model checkpoints
+checkpoints/
+*.pt
+*.pth
+
+# Outputs (keep figures for report, exclude the rest)
+outputs/*.json
+outputs/*.csv
+outputs/*.png
+outputs/baseline_comparison.png
+!outputs/figures/
