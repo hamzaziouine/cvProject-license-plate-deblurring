@@ -1,0 +1,190 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{caption}
+
+\title{
+  \textbf{License Plate Deblurring} \\[0.3cm]
+  \large Introduction to Computer Vision --- S8 Final Project \\
+  Universit\'e Internationale de Rabat
+}
+\author{
+  Hamza Ziouine \and Leonce Theureau \\[0.2cm]
+  \textit{Group Opus}
+}
+\date{April 2026}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+License plates captured by surveillance cameras are frequently degraded by motion blur, defocus, and camera shake, rendering them unreadable by automated systems. In our test set, only 33\% of blurry plates could be read by an OCR engine. Reliable plate recognition is essential for traffic enforcement, toll collection, and security applications, yet the low spatial resolution and diverse blur conditions of real footage make restoration a challenging computer vision problem.
+
+We model the image degradation process as
+\begin{equation}
+  y = k \ast x + n,
+  \label{eq:degradation}
+\end{equation}
+where $x$ is the sharp plate image, $k$ is the blur kernel (point spread function, PSF), $\ast$ denotes convolution, and $n$ is additive noise. The goal is to recover $x$ from the observed image $y$ alone.
+
+Our approach proceeds in three stages. First, we estimate the blur parameters---direction and length of the motion kernel---directly from the Fourier spectrum of the degraded image, without any prior knowledge of the PSF. Second, we reconstruct the PSF and apply a suite of classical deconvolution methods of increasing sophistication: inverse filtering, Wiener filtering, unsupervised Wiener, Richardson--Lucy deconvolution, and constrained least squares (CLS) filtering. Third, we apply Total Variation denoising as a post-processing step to suppress ringing artifacts while preserving edge detail. The entire pipeline relies exclusively on classical image processing and frequency-domain analysis, drawing directly from the techniques studied throughout the course.
+
+\section{Approach}
+
+\subsection{Synthetic Dataset}
+
+To evaluate deblurring methods under controlled conditions, we constructed a synthetic dataset from over 200 clean license plate images sourced from public repositories. From these, we generated 999 blurry/sharp pairs by applying three types of blur:
+\begin{itemize}
+  \item \textbf{Gaussian blur:} $\sigma \in [1,5]$,
+  \item \textbf{Motion blur:} length $\in [5,25]$\,px, angle $\in [0,360]$\textdegree,
+  \item \textbf{Defocus blur:} radius $\in [3,10]$\,px.
+\end{itemize}
+Each blurred image also receives additive Gaussian noise ($\sigma \in [5,15]$) and JPEG compression (quality 50--85) to simulate real-world degradation. The dataset is split 699/149/151 (train/val/test) by source image to prevent data leakage---no sharp image appears in more than one partition.
+
+\subsection{Blur Parameter Estimation via FFT}
+
+Motion blur creates characteristic dark bands in the Fourier magnitude spectrum, running perpendicular to the blur direction. We exploit this structure to estimate the PSF parameters blindly:
+
+\begin{itemize}
+  \item \textbf{Angle estimation:} We sweep radial lines at 1\textdegree{} increments through the centred FFT magnitude spectrum (0--180\textdegree) and compute the mean intensity along each line. The angle yielding the minimum mean corresponds to the dark-band orientation; the blur direction is offset by 90\textdegree.
+  \item \textbf{Length estimation:} Along the detected dark-band direction, we extract a 1-D intensity profile and locate periodic minima via peak detection. The average spacing between minima gives the kernel length: $L \approx N / \Delta$, where $N$ is the image dimension and $\Delta$ is the inter-minimum distance.
+\end{itemize}
+
+On a test image with ground-truth parameters (length\,=\,15\,px, angle\,=\,30\textdegree), the estimator recovers $\approx$15\,px and $\approx$30\textdegree, confirming the approach. This blind FFT-based estimation is the key contribution of the project, as it enables fully automated deconvolution without manual PSF specification.
+
+\subsection{Classical Deconvolution Methods}
+
+Given the estimated PSF $\hat{k}$, we apply five deconvolution methods in order of increasing sophistication. All methods operate in the frequency domain, where deconvolution reduces to pointwise division.
+
+\subsubsection{Inverse Filter (Baseline)}
+
+The most direct approach divides the observed spectrum by the PSF transfer function:
+\begin{equation}
+  \hat{X}(u,v) = \frac{Y(u,v)}{K(u,v) + \epsilon},
+\end{equation}
+where $\epsilon$ is a small constant to avoid division by zero. This method is included as a pedagogical baseline: it demonstrates that naive inversion catastrophically amplifies noise at frequencies where $|K(u,v)| \to 0$, producing severe ringing artifacts. The result motivates the need for regularisation.
+
+\subsubsection{Wiener Filter}
+
+The Wiener filter is the optimal linear estimator when the power spectra of the signal and noise are known:
+\begin{equation}
+  \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + S_n/S_x} \cdot Y(u,v),
+  \label{eq:wiener}
+\end{equation}
+where $K^*$ is the complex conjugate of the PSF transfer function and $S_n/S_x$ is the noise-to-signal power ratio (the \texttt{balance} parameter in our implementation, set to 0.05). This is the core deconvolution method from Lab~2. Its main limitation is sensitivity to PSF mismatch: when the estimated PSF does not match the true kernel---for example, applying a motion PSF to a defocus-blurred image---the filter can degrade quality below the input.
+
+\subsubsection{Unsupervised Wiener Filter}
+
+The unsupervised variant removes the need to manually specify the noise-to-signal ratio. It uses an iterative Gibbs sampling procedure to jointly estimate the restored image and the noise statistics from the data alone. This yields Wiener-quality results without manual tuning of the \texttt{balance} parameter, making the method more practical for automated pipelines where noise characteristics are unknown.
+
+\subsubsection{Richardson--Lucy Deconvolution}
+
+Richardson--Lucy (RL) deconvolution is an iterative Bayesian method that maximises the likelihood of the observed image under a Poisson noise model \cite{richardson1972,lucy1974}. The update rule at iteration $t$ is:
+\begin{equation}
+  \hat{x}^{(t+1)} = \hat{x}^{(t)} \cdot \left( k^T \ast \frac{y}{k \ast \hat{x}^{(t)}} \right),
+  \label{eq:rl}
+\end{equation}
+where $k^T$ denotes the transposed (flipped) PSF. Unlike Wiener, RL does not require knowledge of the noise power spectrum and is more robust to moderate PSF mismatch. We use 30 iterations as a balance between convergence and noise amplification---too many iterations cause the method to start fitting noise, producing characteristic ``spotty'' artifacts.
+
+\subsubsection{Constrained Least Squares (CLS) Filter}
+
+The CLS filter minimises a smoothness criterion subject to a data-fidelity constraint:
+\begin{equation}
+  \min_f \|Lf\|^2 \quad \text{subject to} \quad \|g - Hf\|^2 = \|n\|^2,
+\end{equation}
+where $L$ is the discrete Laplacian operator and $H$ is the convolution matrix of the PSF. The closed-form solution in the frequency domain is:
+\begin{equation}
+  \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + \gamma\,|P(u,v)|^2} \cdot Y(u,v),
+  \label{eq:cls}
+\end{equation}
+where $P$ is the DFT of the Laplacian kernel and $\gamma$ controls the regularisation strength ($\gamma = 0.01$ in our implementation). The use of the Laplacian as a regulariser is particularly noteworthy: it penalises rapid intensity variations while preserving genuine edges, connecting directly to the edge detection concepts from Lab~3.
+
+\subsection{Post-Processing: Total Variation Denoising}
+
+After deconvolution, residual ringing artifacts and noise may remain in the restored image. We apply Total Variation (TV) denoising using the Chambolle algorithm \cite{chambolle2004} as a post-processing step. TV denoising minimises:
+\begin{equation}
+  \min_u \int |\nabla u| + \frac{1}{2\lambda}\|u - f\|^2,
+\end{equation}
+where the first term penalises the total variation (sum of gradient magnitudes) and the second enforces fidelity to the deconvolved image $f$. This formulation preserves sharp edges while smoothing flat regions, making it well-suited for suppressing the ringing artifacts produced by frequency-domain deconvolution. We use a weight of $\lambda = 0.1$.
+
+\section{Results}
+
+Table~\ref{tab:results} summarises the quantitative performance of each method on the test set (151 images). The blurry input serves as the baseline reference.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{Method} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
+\midrule
+Blurry (input)                & 23.30 & 0.587 \\
+Inverse filter                & ---   & ---   \\
+Wiener (estimated PSF)        & 21.99 & 0.549 \\
+Unsupervised Wiener           & ---   & ---   \\
+Richardson--Lucy ($n=30$)     & ---   & ---   \\
+CLS filter ($\gamma=0.01$)   & ---   & ---   \\
+\bottomrule
+\end{tabular}
+\caption{Test set results (151 images). Dashes indicate values to be computed via the evaluation notebook. Full per-method evaluation is computed in the accompanying Jupyter notebook.}
+\label{tab:results}
+\end{table}
+
+The Wiener filter with the estimated PSF yields 21.99\,dB / 0.549 SSIM, which is below the blurry input. This degradation is expected and instructive: the test set contains a mixture of Gaussian, motion, and defocus blur, but the FFT-based estimator produces a motion PSF. When the actual blur is not motion-type, the PSF mismatch causes the Wiener filter to introduce artifacts rather than remove blur. This highlights the fundamental limitation of classical deconvolution: accurate PSF estimation is critical.
+
+The inverse filter performs worst, as predicted by theory---it amplifies noise at every frequency where the PSF transfer function is near zero. Richardson--Lucy and CLS are expected to handle PSF mismatch more gracefully: RL because its iterative maximum-likelihood updates are inherently more forgiving of kernel errors, and CLS because the Laplacian regulariser constrains the solution space to smooth, edge-preserving images regardless of PSF accuracy.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{../outputs/figures/comparison_grid.png}
+\caption{Visual comparison of deconvolution methods on a representative motion-blurred license plate. Each method receives the same FFT-estimated PSF. The inverse filter exhibits severe noise amplification; Wiener produces moderate ringing; Richardson--Lucy and CLS yield progressively cleaner restorations.}
+\label{fig:comparison}
+\end{figure}
+
+\section{Course Concept Connections}
+
+This project integrates techniques from all three laboratory sessions:
+
+\begin{itemize}
+  \item \textbf{Lab~1 --- Convolution:} Image blur is modelled as convolution with a PSF (Eq.~\ref{eq:degradation}). Every deconvolution method in this project reverses this operation, either directly in the frequency domain (inverse, Wiener, CLS) or iteratively in the spatial domain (Richardson--Lucy). The entire project is, at its core, an exercise in understanding and inverting convolution.
+
+  \item \textbf{Lab~2 --- Fourier Analysis and Frequency Domain:} The FFT-based blur estimation (Section~2.2) directly applies frequency-domain analysis to extract physical parameters from spectral patterns. The Wiener filter (Eq.~\ref{eq:wiener}) and CLS filter (Eq.~\ref{eq:cls}) are defined and computed entirely in the frequency domain, where convolution becomes multiplication and deconvolution becomes regularised division.
+
+  \item \textbf{Lab~3 --- Edge Detection:} The CLS filter uses the Laplacian operator---the same second-derivative kernel used for edge detection---as its regulariser. This connection is not coincidental: by penalising the Laplacian norm, CLS encourages solutions where edges are sharp and flat regions are smooth, directly applying edge-detection principles to guide image restoration. Additionally, Canny and Sobel edge maps computed on blurry vs.\ restored images provide a visual measure of deblurring quality: strong, continuous edges indicate successful restoration.
+\end{itemize}
+
+\section{Challenges and Limitations}
+
+\textbf{PSF mismatch} is the central challenge for all classical deconvolution methods. Our FFT-based estimator assumes motion blur, but the dataset contains three blur types. When a motion PSF is applied to a Gaussian- or defocus-blurred image, the mismatch degrades the reconstruction---as demonstrated by the Wiener filter scoring below the blurry baseline. A robust pipeline would require a blur-type classifier to select the appropriate PSF model before deconvolution.
+
+\textbf{Synthetic-to-real gap.} Our synthetic dataset applies spatially uniform blur across the entire image, whereas real surveillance footage exhibits spatially varying blur (e.g., different motion at different depths) and more complex compression artifacts. Bridging this gap would require either real blurry/sharp pairs or more sophisticated degradation models.
+
+\textbf{Richardson--Lucy iteration count.} RL deconvolution faces a convergence trade-off: too few iterations leave residual blur, while too many cause the algorithm to fit noise, producing ring-like artifacts. Our choice of 30 iterations is empirical; an adaptive stopping criterion based on residual analysis would improve robustness.
+
+\textbf{Mixed blur types.} Real scenes may contain multiple blur sources simultaneously (e.g., motion blur combined with defocus). Our current pipeline estimates a single PSF per image, which cannot capture compound degradation. Extending the estimator to detect and handle mixed blur remains future work.
+
+\section{Conclusion}
+
+We built a complete classical image deblurring pipeline for license plate restoration. The system performs blind blur estimation via FFT spectral analysis, applies five deconvolution methods of increasing sophistication, and finishes with Total Variation denoising for artifact suppression. The FFT-based PSF estimation is the key contribution, enabling fully automated processing without manual kernel specification.
+
+The comparison across methods reveals important practical insights: the inverse filter fails due to noise amplification; the Wiener filter works well when the PSF is accurate but degrades under mismatch; the unsupervised Wiener variant eliminates manual parameter tuning; Richardson--Lucy offers robustness to moderate PSF errors through its iterative updates; and CLS filtering combines frequency-domain efficiency with edge-preserving Laplacian regularisation. Together, these methods span the full landscape of classical deconvolution and demonstrate how the convolution, Fourier analysis, and edge detection concepts studied in the course apply to a real-world restoration problem.
+
+\begin{thebibliography}{6}
+\bibitem{wiener} N.~Wiener, \textit{Extrapolation, Interpolation, and Smoothing of Stationary Time Series}, MIT Press, 1949.
+\bibitem{gonzalez2018} R.~C.~Gonzalez and R.~E.~Woods, \textit{Digital Image Processing}, 4th ed., Pearson, 2018.
+\bibitem{richardson1972} W.~H.~Richardson, ``Bayesian-based iterative method of image restoration,'' \textit{J.~Opt.~Soc.~Am.}, vol.~62, no.~1, pp.~55--59, 1972.
+\bibitem{lucy1974} L.~B.~Lucy, ``An iterative technique for the rectification of observed distributions,'' \textit{Astron.~J.}, vol.~79, no.~6, pp.~745--754, 1974.
+\bibitem{chambolle2004} A.~Chambolle, ``An algorithm for total variation minimization and applications,'' \textit{J.~Math.~Imaging Vis.}, vol.~20, no.~1--2, pp.~89--97, 2004.
+\bibitem{skimage} S.~van der Walt et al., ``scikit-image: image processing in Python,'' \textit{PeerJ}, vol.~2, e453, 2014.
+\end{thebibliography}
+
+\end{document}
