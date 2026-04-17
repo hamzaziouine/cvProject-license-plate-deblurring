@@ -77,7 +77,7 @@ def constrained_least_squares(blurry_image, psf, gamma=0.01):
     return _apply_per_channel(blurry_image, psf, lambda ch, p: _cls_2d(ch, p, gamma))
 
 
-def tv_denoise(image, weight=0.1):
+def tv_denoise(image, weight=0.05):
     """Total Variation denoising (Chambolle algorithm).
 
     Reduces ringing artifacts from deconvolution while preserving edges.
@@ -112,6 +112,8 @@ def _inverse_2d(image_2d, psf, epsilon):
     kh, kw = psf.shape
     psf_pad = np.zeros((h, w), dtype=np.float64)
     psf_pad[:kh, :kw] = psf
+    psf_pad = np.roll(psf_pad, -(kh // 2), axis=0)
+    psf_pad = np.roll(psf_pad, -(kw // 2), axis=1)
     H = np.fft.fft2(psf_pad)
     H_inv = np.conj(H) / (np.abs(H) ** 2 + epsilon)
     return np.real(np.fft.ifft2(np.fft.fft2(image_2d) * H_inv))
@@ -122,8 +124,12 @@ def _cls_2d(image_2d, psf, gamma):
     kh, kw = psf.shape
     psf_pad = np.zeros((h, w), dtype=np.float64)
     psf_pad[:kh, :kw] = psf
+    psf_pad = np.roll(psf_pad, -(kh // 2), axis=0)
+    psf_pad = np.roll(psf_pad, -(kw // 2), axis=1)
     lap = np.zeros((h, w), dtype=np.float64)
     lap[:3, :3] = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]], dtype=np.float64)
+    lap = np.roll(lap, -1, axis=0)
+    lap = np.roll(lap, -1, axis=1)
     H = np.fft.fft2(psf_pad)
     P = np.fft.fft2(lap)
     H_cls = np.conj(H) / (np.abs(H) ** 2 + gamma * np.abs(P) ** 2 + 1e-10)

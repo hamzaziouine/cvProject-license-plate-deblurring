@@ -7,120 +7,56 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath}
-\usepackage{tikz}
 
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
 
-\title{License Plate Deblurring Using Classical Computer Vision Techniques}
-\subtitle{Introduction to Computer Vision -- S8 Final Project}
+\title{License Plate Deblurring}
+\subtitle{Classical Computer Vision Techniques}
 \author{Hamza Ziouine \and Leonce Theureau}
-\institute{Universit\'e Internationale de Rabat \\ Group Opus}
+\institute{Universit\'e Internationale de Rabat --- Group Opus}
 \date{April 2026}
 
 \begin{document}
 
-% ---- Slide 1: Title ----
+% ---- 1: Title ----
 \begin{frame}
 \titlepage
 \end{frame}
 
-% ---- Slide 2: Outline ----
-\begin{frame}{Outline}
-\tableofcontents
+% ---- 2: Problem & Goal ----
+\begin{frame}{Problem \& Goal}
+\textbf{Problem:} License plates in surveillance footage are blurred (motion, defocus, atmospheric).
+
+\vspace{0.2cm}
+\textbf{Degradation model:} \quad $y = k \ast x + n$
+
+\vspace{0.3cm}
+\textbf{Goal:} Build a classical pipeline to recover $x$ from $y$:
+
+\vspace{0.2cm}
+\begin{center}
+\small
+\fbox{Blurry Image} $\rightarrow$
+\fbox{FFT / PSF Est.} $\rightarrow$
+\fbox{Deconvolution} $\rightarrow$
+\fbox{TV Denoising} $\rightarrow$
+\fbox{OCR}
+\end{center}
 \end{frame}
 
-\section{Introduction}
-
-% ---- Slide 3: Problem Statement ----
-\begin{frame}{Problem Statement}
+% ---- 3: Dataset ----
+\begin{frame}{Dataset}
 \begin{columns}
 \begin{column}{0.55\textwidth}
-\textbf{Challenge:} License plates in surveillance footage are often blurry due to:
+\textbf{Synthetic paired data} (ground truth available):
 \begin{itemize}
-  \item Motion blur (moving vehicles)
-  \item Defocus blur (camera optics)
-  \item Atmospheric degradation
-\end{itemize}
-
-\vspace{0.5cm}
-\textbf{Impact:} OCR systems frequently fail on blurry plates
-\begin{itemize}
-  \item Blurry plates are often unreadable by automated OCR
+  \item 1,001 clean plates $\times$ 3 blur types = \textbf{3,003 pairs}
+  \item Gaussian ($\sigma \in [1,5]$), motion ($5$--$25$\,px), defocus ($r \in [3,10]$\,px)
+  \item + noise + JPEG compression
 \end{itemize}
 \end{column}
 \begin{column}{0.4\textwidth}
-\centering
-\textbf{Degradation Model:}
-\vspace{0.3cm}
-$$y = k \ast x + n$$
-\begin{itemize}
-  \item $x$: sharp image
-  \item $k$: blur kernel (PSF)
-  \item $n$: noise
-  \item $y$: observed blurry image
-\end{itemize}
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---- Slide 4: Project Goal ----
-\begin{frame}{Project Goal}
-\begin{center}
-\Large
-\textbf{Classical Deblurring Pipeline:}
-
-\vspace{0.5cm}
-\fbox{Blurry Image} $\rightarrow$
-\fbox{FFT Analysis} $\rightarrow$
-\fbox{PSF Estimation} $\rightarrow$
-\fbox{Deconvolution} $\rightarrow$
-\fbox{Post-Processing} $\rightarrow$
-\fbox{OCR}
-\end{center}
-
-\vspace{0.5cm}
-\textbf{Objectives:}
-\begin{itemize}
-  \item Evaluate classical deconvolution under blind PSF estimation on realistic degraded plates
-  \item Compare five deconvolution approaches (Inverse, Wiener, Unsup.\ Wiener, RL, CLS)
-  \item Quantify the impact of PSF estimation accuracy on restoration quality
-  \item Connect all methods to Lab~1--3 course concepts
-\end{itemize}
-\end{frame}
-
-\section{Dataset}
-
-% ---- Slide 5: Synthetic Dataset ----
-\begin{frame}{Synthetic Dataset Generation}
-\begin{columns}
-\begin{column}{0.5\textwidth}
-\textbf{Why synthetic?}
-\begin{itemize}
-  \item Real paired data requires specialized camera rigs
-  \item Synthetic gives perfect ground truth pairs
-  \item Control over blur type and severity
-\end{itemize}
-
-\vspace{0.3cm}
-\textbf{Pipeline:}
-\begin{enumerate}
-  \item Start with clean plate images
-  \item Apply blur (Gaussian/motion/defocus)
-  \item Add noise + JPEG compression
-  \item Save paired blurry/sharp images
-\end{enumerate}
-\end{column}
-\begin{column}{0.45\textwidth}
-\textbf{3 Blur Types:}
-\begin{itemize}
-  \item \textbf{Gaussian:} $\sigma \in [1, 5]$
-  \item \textbf{Motion:} length $\in [5, 25]$px
-  \item \textbf{Defocus:} radius $\in [3, 10]$px
-\end{itemize}
-
-\vspace{0.3cm}
-\textbf{Dataset Stats:}
 \begin{tabular}{lr}
 \toprule
 Split & Images \\
@@ -136,265 +72,113 @@ Test & 453 \\
 \end{columns}
 \end{frame}
 
-\section{Methodology}
-
-% ---- Slide 6: Blur Estimation via FFT ----
-\begin{frame}{Blur Estimation via FFT}
-\textbf{Blind PSF estimation from the frequency domain:}
-
-\vspace{0.3cm}
-\begin{columns}
-\begin{column}{0.55\textwidth}
-\textbf{Motion blur angle estimation:}
-\begin{enumerate}
-  \item Compute $|F(u,v)|$ of the blurry image
-  \item The motion blur PSF creates a \textbf{dark band} perpendicular to the motion direction
-  \item \textbf{Angular sweep:} integrate energy along radial lines at each angle $\theta \in [0^\circ, 180^\circ)$
-  \item The angle with minimum energy = blur direction
-\end{enumerate}
-\end{column}
-\begin{column}{0.4\textwidth}
-\textbf{Motion blur length estimation:}
-\begin{enumerate}
-  \item Extract 1D profile along the dark band direction
-  \item Count \textbf{zero-crossings} or measure spacing of periodic nulls
-  \item Null spacing $\Delta f \approx 1/L$, where $L$ = blur length in pixels
+% ---- 4: PSF Estimation ----
+\begin{frame}{Blind PSF Estimation via FFT}
+\begin{enumerate}\setlength{\itemsep}{2pt}
+  \item Compute magnitude spectrum $|F(u,v)|$ of blurry image
+  \item \textbf{Angle:} angular sweep --- minimum energy direction = blur angle
+  \item \textbf{Length:} null spacing along dark band --- $L \approx 1/\Delta f$
 \end{enumerate}
 
-\vspace{0.3cm}
-\textbf{Result:} Estimated PSF $\hat{k}$ for deconvolution
-\end{column}
-\end{columns}
+\vspace{0.2cm}
+\begin{figure}
+\centering
+\includegraphics[width=0.65\textwidth,height=0.45\textheight,keepaspectratio]{../outputs/figures/fft_analysis.png}
+\caption{\small FFT spectra: blur attenuates high frequencies along the motion direction}
+\end{figure}
 \end{frame}
 
-% ---- Slide 7: Classical Deconvolution Methods ----
-\begin{frame}{Classical Deconvolution Methods}
-\textbf{Progression of increasingly robust approaches:}
+% ---- 5: Deconvolution Methods ----
+\begin{frame}{5 Deconvolution Methods}
+\small
+\begin{enumerate}\setlength{\itemsep}{4pt}
+  \item \textbf{Inverse Filter:} $\hat{X} = Y / K$ \hfill \textit{(baseline, amplifies noise)}
 
-\vspace{0.3cm}
-\begin{enumerate}
-  \item \textbf{Inverse Filter} (baseline): $\hat{X} = Y / K$ \hfill \textit{amplifies noise}
+  \item \textbf{Wiener Filter:}
+  $\hat{X} = \frac{K^*}{|K|^2 + S_n/S_x} \cdot Y$ \hfill \textit{(optimal, known PSF)}
 
-  \item \textbf{Wiener Filter} (optimal for known PSF + noise):
-  $$\hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + S_n/S_x} \cdot Y(u,v)$$
+  \item \textbf{Unsupervised Wiener:} auto noise-to-signal estimation \hfill \textit{(no tuning)}
 
-  \item \textbf{Unsupervised Wiener}: automatic noise-to-signal ratio estimation
+  \item \textbf{Richardson--Lucy:}
+  $\hat{x}^{(t+1)} = \hat{x}^{(t)} \cdot \bigl( k^T \ast \frac{y}{k \ast \hat{x}^{(t)}} \bigr)$ \hfill \textit{(iterative, Poisson)}
 
-  \item \textbf{Richardson--Lucy}: iterative Bayesian deconvolution (Poisson noise model)
-
-  \item \textbf{Constrained Least Squares (CLS)}: Laplacian regularisation for edge preservation
+  \item \textbf{CLS:}
+  $\hat{X} = \frac{K^*}{|K|^2 + \gamma |P|^2} \cdot Y$ \hfill \textit{(Laplacian regularisation)}
 \end{enumerate}
-
-\vspace{0.3cm}
-\small{All methods take the estimated PSF $\hat{k}$ as input; differ in noise handling and regularisation strategy.}
 \end{frame}
 
-% ---- Slide 8: Richardson--Lucy Details ----
-\begin{frame}{Richardson--Lucy Deconvolution}
-\textbf{Iterative update rule (Bayesian, Poisson noise model):}
-$$\hat{x}^{(t+1)} = \hat{x}^{(t)} \cdot \left( k^T \ast \frac{y}{k \ast \hat{x}^{(t)}} \right)$$
-
-\vspace{0.3cm}
+% ---- 6: Results ----
+\begin{frame}{Results (Blind Estimation, 453 Test Images)}
 \begin{columns}
-\begin{column}{0.5\textwidth}
-\textbf{Properties:}
-\begin{itemize}
-  \item Non-negativity preserved at each iteration
-  \item Converges to maximum likelihood estimate
-  \item No explicit noise model parameter needed
-  \item Robust to moderate PSF mismatch
-\end{itemize}
-\end{column}
 \begin{column}{0.45\textwidth}
-\textbf{Practical considerations:}
-\begin{itemize}
-  \item Number of iterations controls regularisation
-  \item Too few $\rightarrow$ under-deconvolved
-  \item Too many $\rightarrow$ noise amplification (ringing)
-  \item Typical range: 10--50 iterations
-\end{itemize}
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---- Slide 9: CLS Filter Details ----
-\begin{frame}{Constrained Least Squares (CLS) Filter}
-\textbf{Minimize:} $\| C \hat{x} \|^2$ \quad subject to \quad $\| y - k \ast \hat{x} \|^2 = \| n \|^2$
-
-\vspace{0.3cm}
-\textbf{Frequency domain solution:}
-$$\hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + \gamma |P(u,v)|^2} \cdot Y(u,v)$$
-
-where $P(u,v)$ is the Laplacian operator and $\gamma$ is the regularisation parameter.
-
-\vspace{0.3cm}
-\begin{columns}
-\begin{column}{0.5\textwidth}
-\textbf{Advantages:}
-\begin{itemize}
-  \item Laplacian penalty preserves edges
-  \item Single parameter $\gamma$ to tune
-  \item Closed-form solution (fast)
-\end{itemize}
-\end{column}
-\begin{column}{0.45\textwidth}
-\textbf{Comparison to Wiener:}
-\begin{itemize}
-  \item Wiener: penalizes deviation from signal statistics
-  \item CLS: penalizes non-smooth solutions
-  \item CLS better when noise statistics are unknown
-\end{itemize}
-\end{column}
-\end{columns}
-\end{frame}
-
-% ---- Slide 10: Post-Processing ----
-\begin{frame}{Post-Processing: Total Variation Denoising}
-\textbf{Problem:} Deconvolution introduces ringing artifacts near edges.
-
-\vspace{0.3cm}
-\textbf{Solution:} Total Variation (TV) denoising as post-processing step:
-$$\min_{\hat{x}} \left\{ \frac{1}{2} \| \hat{x} - x_{\text{deconv}} \|^2 + \lambda \cdot \text{TV}(\hat{x}) \right\}$$
-
-where $\text{TV}(\hat{x}) = \sum_{i,j} \sqrt{(\nabla_h \hat{x})^2 + (\nabla_v \hat{x})^2}$
-
-\vspace{0.3cm}
-\begin{itemize}
-  \item Preserves sharp edges while suppressing oscillations
-  \item Weight $\lambda$ balances fidelity vs.\ smoothness
-  \item Applied after each deconvolution method
-  \item Particularly effective for reducing Gibbs-like ringing from frequency-domain methods
-\end{itemize}
-\end{frame}
-
-\section{Results}
-
-% ---- Slide 11: Quantitative Results ----
-\begin{frame}{Quantitative Results}
-\begin{center}
 \begin{tabular}{lcc}
 \toprule
-\textbf{Method} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
+\textbf{Method} & \textbf{PSNR} & \textbf{SSIM} \\
 \midrule
-Blurry (input) & 22.77 & 0.566 \\
-Inverse filter & 10.33 & 0.013 \\
-Wiener (estimated PSF) & 15.74 & 0.226 \\
-Unsupervised Wiener & 12.11 & 0.103 \\
-Richardson--Lucy ($n$=30) & 12.43 & 0.173 \\
-CLS filter ($\gamma$=0.01) & 11.02 & 0.043 \\
+Blurry input & 22.77 & 0.566 \\
+Wiener & 15.74 & 0.226 \\
+RL ($n$=30) & 12.43 & 0.173 \\
+Unsup.\ Wiener & 12.11 & 0.103 \\
+CLS & 11.02 & 0.043 \\
+Inverse & 10.33 & 0.013 \\
 \bottomrule
 \end{tabular}
-\end{center}
-
-\vspace{0.3cm}
-\textbf{Key finding:}
+\end{column}
+\begin{column}{0.5\textwidth}
+\textbf{Key findings:}
 \begin{itemize}
-  \item All methods score below blurry baseline due to blind PSF estimation errors
-  \item Wiener filter is the best performer (15.74\,dB)
-  \item With \textbf{known PSF}, Wiener \textit{improves} by +2.2\,dB --- the bottleneck is estimation, not the methods
+  \item All below baseline --- PSF estimation error is the bottleneck
+  \item With \textbf{oracle PSF}, Wiener gains \textbf{+2.2\,dB} --- methods work, estimation doesn't
+  \item Wiener is best overall performer
 \end{itemize}
+\end{column}
+\end{columns}
 \end{frame}
 
-% ---- Slide 12: Visual Comparison ----
+% ---- 7: Visual Comparison ----
 \begin{frame}{Visual Comparison}
 \begin{figure}
 \centering
-\includegraphics[width=0.95\textwidth]{../outputs/figures/comparison_grid.png}
-\caption{Blurry input $\rightarrow$ Classical deconvolution output $\rightarrow$ Ground truth}
+\includegraphics[width=0.85\textwidth,height=0.7\textheight,keepaspectratio]{../outputs/figures/comparison_grid.png}
+\caption{\small Blurry $\rightarrow$ Deconvolved $\rightarrow$ Ground truth}
 \end{figure}
 \end{frame}
 
-\section{Course Concepts}
+% ---- 8: Course Connections ----
+\begin{frame}{Course Connections}
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item[$\checkmark$] \textbf{Lab 1 -- Convolution:} blur = convolution with PSF; all methods = deconvolution
+  \item[$\checkmark$] \textbf{Lab 2 -- Frequency Filtering:} Wiener, CLS, PSF estimation in Fourier domain
+  \item[$\checkmark$] \textbf{Lab 3 -- Edge Detection:} edge maps validate restoration quality
+\end{itemize}
 
-% ---- Slide 13: FFT Analysis (Lab 2) ----
-\begin{frame}{Frequency Domain Analysis (Lab 2)}
+\vspace{0.1cm}
 \begin{figure}
 \centering
-\includegraphics[width=0.9\textwidth]{../outputs/figures/fft_analysis.png}
-\caption{FFT magnitude spectra: blur attenuates high frequencies; classical deconvolution recovers them}
+\includegraphics[width=0.6\textwidth,height=0.4\textheight,keepaspectratio]{../outputs/figures/edge_comparison.png}
+\caption{\small Canny/Sobel edges: deblurring recovers edge structure lost to blur}
 \end{figure}
-\small{Connects to Lab 2: Frequency Filtering -- convolution in spatial domain = multiplication in frequency domain. Wiener and CLS filters operate directly in the frequency domain.}
 \end{frame}
 
-% ---- Slide 14: Edge Detection (Lab 3) ----
-\begin{frame}{Edge Detection Analysis (Lab 3)}
-\begin{figure}
-\centering
-\includegraphics[width=0.85\textwidth]{../outputs/figures/edge_comparison.png}
-\caption{Canny \& Sobel edge maps: classical deblurring restores edges lost to blur}
-\end{figure}
-\small{Connects to Lab 3: Edge Detection -- blur weakens gradient responses; deconvolution recovers edge structure for downstream OCR.}
-\end{frame}
-
-% ---- Slide 15: Convolution Connection (Lab 1) ----
-\begin{frame}{Convolution: The Unifying Concept (Lab 1)}
-\textbf{Blur is convolution. All our methods are deconvolution.}
-
-\vspace{0.3cm}
-\begin{enumerate}
-  \item \textbf{Blur generation:} $y = k \ast x$ (spatial convolution with PSF)
-  \item \textbf{Wiener / CLS filters:} Deconvolution via frequency domain division
-    \begin{itemize}
-      \item Multiplication in frequency domain = convolution in spatial domain
-    \end{itemize}
-  \item \textbf{Richardson--Lucy:} Iterative deconvolution in the spatial domain
-    \begin{itemize}
-      \item Each iteration involves convolution with $k$ and correlation with $k^T$
-    \end{itemize}
-\end{enumerate}
-
-\vspace{0.3cm}
-\textbf{Every method in this project is rooted in Lab 1:}
-\begin{itemize}
-  \item Frequency-domain methods: convolution $\leftrightarrow$ multiplication (Fourier theorem)
-  \item Spatial-domain methods: direct convolution with PSF and its transpose
-  \item PSF estimation: analyzing convolution effects in the Fourier domain
-\end{itemize}
-\end{frame}
-
-\section{Conclusion}
-
-% ---- Slide 16: Summary ----
-\begin{frame}{Summary}
-\begin{itemize}
-  \item Built a fully classical pipeline: FFT Analysis $\rightarrow$ PSF Estimation $\rightarrow$ Deconvolution $\rightarrow$ Post-Processing $\rightarrow$ OCR
-  \item Compared \textbf{five} deconvolution methods: Inverse, Wiener, Unsupervised Wiener, Richardson--Lucy, CLS
-  \item \textbf{Blind PSF estimation} via FFT angular sweep and null spacing analysis
-  \item Total Variation denoising for ringing artifact suppression
-  \item All techniques grounded in classical computer vision
-\end{itemize}
-
-\vspace{0.5cm}
-\textbf{Course connections:}
-\begin{itemize}
-  \item[$\checkmark$] Lab 1: Convolution / deconvolution as core operation
-  \item[$\checkmark$] Lab 2: Frequency domain filtering (Wiener, CLS, FFT-based PSF estimation)
-  \item[$\checkmark$] Lab 3: Edge detection to validate restoration quality
-\end{itemize}
-\end{frame}
-
-% ---- Slide 17: Limitations & Future Work ----
+% ---- 9: Limitations & Future Work ----
 \begin{frame}{Limitations \& Future Work}
 \textbf{Limitations:}
 \begin{itemize}
-  \item PSF mismatch remains the primary challenge for blind deconvolution
-  \item Synthetic-to-real gap: controlled blur differs from real-world degradation
-  \item Spatially varying blur (e.g., radial motion) not addressed
-  \item Parameter tuning ($\gamma$, iterations, $\lambda$) is dataset-dependent
+  \item Blind PSF estimation is the primary bottleneck
+  \item Synthetic blur $\neq$ real-world degradation
+  \item Spatially varying blur not addressed
 \end{itemize}
 
 \vspace{0.5cm}
-\textbf{Future directions:}
+\textbf{Future work:}
 \begin{itemize}
-  \item Multi-scale PSF estimation for spatially varying blur
-  \item Adaptive parameter selection (automatic $\gamma$ and iteration count)
-  \item Multi-kernel PSF estimation with automatic blur-type classification
-  \item Evaluation on real surveillance footage
-  \item Moroccan license plate format specialization
+  \item Multi-scale / adaptive PSF estimation
+  \item Real surveillance footage evaluation
+  \item Automatic blur-type classification
 \end{itemize}
 \end{frame}
 
-% ---- Slide 18: Thank You ----
+% ---- 10: Thank You ----
 \begin{frame}
 \begin{center}
 \Huge \textbf{Thank You!}
@@ -405,9 +189,7 @@ CLS filter ($\gamma$=0.01) & 11.02 & 0.043 \\
 \vspace{1cm}
 \normalsize
 Hamza Ziouine \& Leonce Theureau \\
-Group Opus \\
-\vspace{0.3cm}
-\small{Code and evaluation notebooks available in the project repository}
+Group Opus
 \end{center}
 \end{frame}
 

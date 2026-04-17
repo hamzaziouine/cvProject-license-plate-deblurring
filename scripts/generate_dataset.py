@@ -2,6 +2,7 @@
 import argparse
 import json
 import sys
+import cv2
 import numpy as np
 import yaml
 from pathlib import Path
@@ -12,21 +13,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.blur_generator import (
-    apply_gaussian_blur,
-    apply_motion_blur,
-    apply_defocus_blur,
     add_degradation,
     get_blur_kernel,
 )
 from src.utils import load_image, save_image, ensure_dir, resize_max
 
 BLUR_TYPES = ["gaussian", "motion", "defocus"]
-
-BLUR_FUNCTIONS = {
-    "gaussian": apply_gaussian_blur,
-    "motion": apply_motion_blur,
-    "defocus": apply_defocus_blur,
-}
 
 
 def generate_dataset(config):
@@ -67,7 +59,6 @@ def generate_dataset(config):
 
         for v in range(num_variants):
             blur_type = BLUR_TYPES[v % len(BLUR_TYPES)]
-            blur_fn = BLUR_FUNCTIONS[blur_type]
 
             blur_cfg = config["blur"][blur_type]
             blur_kwargs = {}
@@ -75,8 +66,8 @@ def generate_dataset(config):
                 blur_kwargs[key] = tuple(val)
 
             blur_params = _sample_blur_params(blur_type, blur_kwargs)
-
-            blurred = blur_fn(image, **blur_kwargs)
+            kernel = get_blur_kernel(blur_type, blur_params)
+            blurred = cv2.filter2D(image, -1, kernel).astype(np.uint8)
 
             deg_cfg = config["degradation"]
             degraded = add_degradation(
@@ -91,10 +82,9 @@ def generate_dataset(config):
             save_image(degraded, str(blurry_dir / out_name))
 
             try:
-                kernel = get_blur_kernel(blur_type, blur_params)
                 np.save(str(kernels_dir / f"{source_stem}_v{v}.npy"), kernel)
-            except OSError:
-                pass  # Skip kernel save on disk errors (OneDrive sync)
+            except OSError as e:
+                print(f"Warning: Could not save kernel for {out_name}: {e}")
 
             metadata[out_name] = {
                 "blur_type": blur_type,
@@ -169,7 +159,7 @@ def _sample_blur_params(blur_type, blur_kwargs):
 
 def _write_split_file(path, filenames):
     with open(path, "w") as f:
-        f.write("\n".join(filenames))
+        f.write("\n".join(filenames) + "\n")
 
 
 def main():

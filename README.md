@@ -58,7 +58,7 @@ Blind estimation of blur angle and length from the Fourier magnitude spectrum. D
 5. **Constrained Least Squares** -- Laplacian-regularised frequency domain filter
 
 ### Task 4: Evaluation
-PSNR, SSIM, and OCR readability metrics across the full 151-image test set.
+PSNR and SSIM metrics across the full 453-image test set (151 per blur type).
 
 ### Post-Processing: Total Variation Denoising
 Chambolle TV denoising applied after deconvolution to reduce ringing artifacts.

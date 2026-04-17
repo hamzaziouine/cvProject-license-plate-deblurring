@@ -28,6 +28,8 @@ def estimate_blur_angle(gray):
     h, w = mag.shape
     cy, cx = h // 2, w // 2
     max_r = min(cy, cx) // 2
+    if max_r <= 5:
+        return 0.0
     angles = np.arange(0, 180, dtype=float)
     profile = np.zeros(len(angles))
     for i, a in enumerate(angles):
@@ -56,6 +58,8 @@ def estimate_blur_length(gray, perp_deg):
         y = int(round(cy - r * np.sin(theta)))
         if 0 <= x < w and 0 <= y < h:
             prof.append(mag[y, x])
+    if len(prof) < 2:
+        return 10
     prof = np.array(prof)
     inv = prof.max() - prof
     peaks, _ = find_peaks(inv, distance=3, prominence=0.3)
@@ -130,7 +134,8 @@ def main():
     meta_file = data / "synthetic" / "metadata.json"
 
     names = split_file.read_text().strip().splitlines()
-    metadata = json.load(open(meta_file))
+    with open(meta_file) as f:
+        metadata = json.load(f)
 
     # Group by blur type
     by_type = defaultdict(list)
@@ -142,7 +147,9 @@ def main():
     for bt, ns in sorted(by_type.items()):
         print(f"  {bt}: {len(ns)}")
 
-    # Evaluate motion-blurred subset first (pipeline is designed for this)
+    # Evaluate each blur type
+    motion_metrics = gauss_metrics = defocus_metrics = None
+
     if "motion" in by_type:
         print(f"\n--- Evaluating MOTION subset ({len(by_type['motion'])} images) ---")
         motion_metrics = evaluate_subset(
@@ -150,7 +157,6 @@ def main():
         )
         print_table(motion_metrics, "MOTION BLUR (pipeline target)")
 
-    # Evaluate gaussian subset
     if "gaussian" in by_type:
         print(f"\n--- Evaluating GAUSSIAN subset ({len(by_type['gaussian'])} images) ---")
         gauss_metrics = evaluate_subset(
@@ -158,7 +164,6 @@ def main():
         )
         print_table(gauss_metrics, "GAUSSIAN BLUR (PSF mismatch expected)")
 
-    # Evaluate defocus subset
     if "defocus" in by_type:
         print(f"\n--- Evaluating DEFOCUS subset ({len(by_type['defocus'])} images) ---")
         defocus_metrics = evaluate_subset(
@@ -166,9 +171,10 @@ def main():
         )
         print_table(defocus_metrics, "DEFOCUS BLUR (PSF mismatch expected)")
 
-    # Compute overall
+    # Compute overall from available subsets
     all_metrics = {k: {"psnr": [], "ssim": []} for k in METHOD_KEYS}
-    for bt_metrics in [motion_metrics, gauss_metrics, defocus_metrics]:
+    available = [m for m in [motion_metrics, gauss_metrics, defocus_metrics] if m is not None]
+    for bt_metrics in available:
         for key in METHOD_KEYS:
             all_metrics[key]["psnr"].extend(bt_metrics[key]["psnr"])
             all_metrics[key]["ssim"].extend(bt_metrics[key]["ssim"])
@@ -178,13 +184,16 @@ def main():
     out_path = PROJECT_ROOT / "outputs" / "test_set_results.txt"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
-        for title, metrics in [
-            ("MOTION BLUR", motion_metrics),
-            ("GAUSSIAN BLUR", gauss_metrics),
-            ("DEFOCUS BLUR", defocus_metrics),
-            ("OVERALL", all_metrics),
-        ]:
-            f.write(f"\n{title} ({len(by_type.get(title.split()[0].lower(), names))} images)\n")
+        type_results = [
+            ("MOTION BLUR", motion_metrics, len(by_type.get("motion", []))),
+            ("GAUSSIAN BLUR", gauss_metrics, len(by_type.get("gaussian", []))),
+            ("DEFOCUS BLUR", defocus_metrics, len(by_type.get("defocus", []))),
+            ("OVERALL", all_metrics, len(names)),
+        ]
+        for title, metrics, count in type_results:
+            if metrics is None:
+                continue
+            f.write(f"\n{title} ({count} images)\n")
             f.write(f"{'Method':<28} {'PSNR (dB)':>10} {'SSIM':>8}\n")
             f.write("-" * 48 + "\n")
             for key in METHOD_KEYS:

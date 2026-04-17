@@ -6,11 +6,11 @@ Introduction to Computer Vision, S8, UIR, Spring 2026
 Overview
 --------
 This dataset contains synthetic blurry/sharp paired license plate images
-used to train and evaluate our deblurring pipeline.
+used to develop and evaluate our deblurring pipeline.
 
 Source Data
 -----------
-- 200+ clean license plate images collected from public datasets
+- 1,001 clean license plate images collected from public datasets
 - Located in clean_plates/ (not tracked in git due to size)
 
 Generated Data (synthetic/)
@@ -30,9 +30,9 @@ Additional degradation: Gaussian noise (sigma 5-15) + JPEG compression (quality 
 
 Data Splits (splits/)
 ---------------------
-- train.txt : 699 images (70%)
-- val.txt   : 149 images (15%)
-- test.txt  : 151 images (15%)
+- train.txt : 2,100 images (70%)
+- val.txt   :   450 images (15%)
+- test.txt  :   453 images (15%)
 
 Splits are done by source image stem to prevent data leakage between sets.
 

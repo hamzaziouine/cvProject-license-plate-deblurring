@@ -128,11 +128,11 @@ Given the estimated PSF $\hat{k}$, we apply five deconvolution methods in order 
 
 \subsubsection{Inverse Filter (Baseline)}
 
-The most direct approach divides the observed spectrum by the PSF transfer function:
+The most direct approach applies the pseudo-inverse of the PSF transfer function:
 \begin{equation}
-  \hat{X}(u,v) = \frac{Y(u,v)}{K(u,v) + \epsilon},
+  \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + \epsilon} \cdot Y(u,v),
 \end{equation}
-where $\epsilon = 10^{-3}$ prevents division by zero. This method is included as a pedagogical baseline: it demonstrates that naive inversion catastrophically amplifies noise at frequencies where $|K(u,v)| \to 0$, producing severe ringing artifacts and motivating the need for regularisation.
+where $K^*$ is the complex conjugate and $\epsilon = 10^{-3}$ regularises frequencies where $|K(u,v)| \to 0$. This is included as a pedagogical baseline: it demonstrates that near-direct inversion catastrophically amplifies noise, producing severe ringing artifacts and motivating the need for stronger regularisation such as the Wiener filter.
 
 \subsubsection{Wiener Filter}
 

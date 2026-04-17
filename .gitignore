@@ -38,11 +38,6 @@ data/3rd party data/
 # Keep sample images for submission
 !data/samples/
 
-# Model checkpoints
-checkpoints/
-*.pt
-*.pth
-
 # LaTeX build artifacts
 report/*.aux
 report/*.log

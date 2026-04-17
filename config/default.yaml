@@ -10,8 +10,6 @@ blur:
 degradation:
   noise_sigma_range: [5, 15]
   jpeg_quality_range: [50, 85]
-  brightness_jitter: 0.1
-  contrast_jitter: 0.1
 
 dataset:
   num_variants_per_image: 3

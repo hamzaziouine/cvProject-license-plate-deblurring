@@ -10,8 +10,9 @@ def compute_psnr(img1: np.ndarray, img2: np.ndarray) -> float:
 
 
 def compute_ssim(img1: np.ndarray, img2: np.ndarray) -> float:
-    """SSIM between two uint8 RGB images."""
-    return ssim_metric(img1, img2, data_range=255, channel_axis=2)
+    """SSIM between two uint8 images (RGB or grayscale)."""
+    ca = 2 if img1.ndim == 3 else None
+    return ssim_metric(img1, img2, data_range=255, channel_axis=ca)
 
 
 def compute_fft_magnitude(image: np.ndarray) -> np.ndarray:
