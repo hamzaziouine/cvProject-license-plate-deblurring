@@ -71,8 +71,8 @@ def constrained_least_squares(blurry_image, psf, gamma=0.01):
     """Constrained Least Squares (CLS) filtering.
 
     Minimises ||Lf||^2 subject to ||g - Hf||^2 = ||n||^2, where L is the
-    Laplacian operator.  Preserves edges better than Wiener when noise
-    statistics are unknown.
+    Laplacian operator. Pedagogical frequency-domain baseline; empirically
+    under-performs Wiener under our blind-estimation conditions.
     """
     return _apply_per_channel(blurry_image, psf, lambda ch, p: _cls_2d(ch, p, gamma))
 

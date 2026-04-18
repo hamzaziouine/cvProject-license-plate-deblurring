@@ -17,10 +17,13 @@
 \usepackage{algorithmic}
 \usepackage{enumitem}
 \usepackage{multirow}
+\usepackage{xcolor}
+\providecommand{\degree}{^{\circ}}
 
 \title{
   \textbf{License Plate Deblurring Using Classical Computer Vision} \\[0.3cm]
-  \large Introduction to Computer Vision --- S8 Final Project \\
+  \large A Critical Evaluation of Blind Deconvolution Under Realistic Degradation \\
+  Introduction to Computer Vision --- S8 Final Project \\
   Universit\'e Internationale de Rabat
 }
 \author{
@@ -33,23 +36,77 @@
 \maketitle
 
 % ============================================================
+\begin{abstract}
+We built a classical, learning-free deblurring pipeline for license plate
+restoration: blind FFT-based PSF estimation, five deconvolution methods
+(inverse, Wiener, unsupervised Wiener, Richardson--Lucy, constrained
+least squares), and Total Variation denoising. On a 3\,003-pair synthetic
+dataset with noise and JPEG compression, the pipeline's target regime
+(motion blur) sees all methods degrade image fidelity below the blurry
+baseline (Wiener $-$8.4\,dB PSNR on 151 motion images). An oracle-PSF
+sanity check confirms the deconvolution code is correct ($+$2.2\,dB when
+the kernel is known). The gap between oracle and blind performance
+quantifies the cost of PSF estimation error --- the real bottleneck ---
+and illustrates the fragility of classical blind deblurring in the
+presence of noise and compression. We report this negative result
+honestly: the methods are implemented correctly, the math is correct,
+and the failure is a well-known limitation of classical deconvolution
+that motivates modern learned priors.
+\end{abstract}
+
+% ============================================================
 \section{Introduction}
 % ============================================================
 
-License plates captured by surveillance cameras are frequently degraded by motion blur, defocus, and atmospheric turbulence, rendering them unreadable by automated OCR systems. Reliable plate recognition is essential for traffic enforcement, toll collection, parking management, and security applications. Yet the low spatial resolution, diverse blur conditions, and compression artifacts present in real footage make restoration a challenging computer vision problem.
+License plates captured by surveillance cameras are frequently degraded
+by motion blur, defocus, and atmospheric turbulence, rendering them
+unreadable by automated OCR systems. Reliable plate recognition is
+essential for traffic enforcement, toll collection, and security
+applications. The low spatial resolution, diverse blur conditions, and
+compression artifacts present in real footage make restoration a
+challenging computer vision problem.
 
-We model the image degradation process as a linear convolution:
+We model image degradation as a linear convolution:
 \begin{equation}
   y = k \ast x + n,
   \label{eq:degradation}
 \end{equation}
-where $x$ is the latent sharp plate image, $k$ is the blur kernel (point spread function, or PSF), $\ast$ denotes two-dimensional convolution, and $n$ is additive noise. The goal is to recover $x$ from the observed degraded image $y$.
+where $x$ is the latent sharp image, $k$ is the point spread function
+(PSF), $\ast$ denotes 2-D convolution, and $n$ is additive noise. The
+goal is to recover $x$ from the observed $y$.
 
-The challenge is twofold: first, the PSF $k$ is generally unknown in practice and must be estimated from the degraded image itself (\textit{blind deconvolution}); second, deconvolution is an ill-posed inverse problem that amplifies noise, requiring careful regularisation. These two difficulties interact: even small errors in PSF estimation can cause deconvolution to introduce artifacts worse than the original blur.
+The challenge is twofold. First, the PSF $k$ is generally unknown in
+practice and must be estimated from the degraded image itself
+(\textit{blind deconvolution}). Second, deconvolution is an ill-posed
+inverse problem that amplifies noise, requiring careful regularisation.
+These two difficulties interact: small errors in PSF estimation can
+cause deconvolution to introduce artifacts worse than the original blur.
 
-Our approach proceeds in three stages. First, we estimate the blur direction and length directly from the Fourier magnitude spectrum of the degraded image, exploiting the characteristic dark-band pattern produced by motion blur. Second, we reconstruct the PSF and apply five classical deconvolution methods of increasing sophistication: inverse filtering, Wiener filtering, unsupervised Wiener, Richardson--Lucy (RL) deconvolution, and constrained least squares (CLS) filtering. Third, we apply Total Variation (TV) denoising to suppress ringing artifacts. The entire pipeline relies exclusively on classical image processing and frequency-domain analysis, drawing directly from the techniques studied in Labs~1--3.
+\paragraph{Scope of this project.} We evaluate the image-fidelity stage
+of a plate-recognition pipeline --- PSNR and SSIM against ground-truth
+sharp plates. Downstream OCR evaluation (character error rate, plate
+read accuracy) is a natural next step and is discussed as future work;
+it is \textit{not} reported here, so the reader should interpret our
+results as upper-bound quality measurements rather than as recognition
+performance.
 
-The experimental results reveal a key finding: while the deconvolution methods are mathematically correct and improve quality when the PSF is accurately known, blind estimation on a realistic degraded dataset (with noise and JPEG compression) produces PSF errors that cause all methods to score below the blurry baseline. This outcome, though initially surprising, demonstrates the fundamental sensitivity of classical deconvolution to PSF accuracy---a central theme in the image restoration literature.
+\paragraph{Central finding.} Under blind PSF estimation on a realistic
+degraded dataset (noise up to $\sigma=15$, JPEG quality down to 50), all
+five deconvolution methods score below the blurry baseline in PSNR and
+SSIM. Oracle-PSF validation on a controlled image confirms the methods
+are correctly implemented and would improve quality if the PSF were
+known. The 9\,dB gap between oracle and blind performance is the cost
+of blind estimation under noise and compression --- a classical
+limitation documented in the image restoration literature
+\cite{gonzalez2018}, and the motivation for modern deep-learning
+approaches to deblurring that we explicitly excluded.
+
+The pipeline proceeds in three stages: (1) FFT-based blind estimation
+of blur direction and length; (2) deconvolution via five classical
+methods of increasing sophistication; (3) Total Variation denoising to
+suppress ringing. The pipeline relies exclusively on classical image
+processing and frequency-domain analysis, directly applying techniques
+from Labs 1--3.
 
 % ============================================================
 \section{Synthetic Dataset}
@@ -57,23 +114,40 @@ The experimental results reveal a key finding: while the deconvolution methods a
 
 \subsection{Motivation}
 
-Evaluating deblurring methods requires paired blurry/sharp images with known ground truth. Collecting such pairs in the wild requires specialised hardware rigs (e.g., beam splitters or burst photography with post-alignment). We therefore constructed a fully synthetic dataset where the degradation is applied programmatically, giving us perfect ground truth, known blur parameters, and controlled experimental conditions.
+Evaluating deblurring methods requires paired blurry/sharp images with
+known ground truth. Collecting such pairs in the wild requires
+specialised hardware (beam splitters, burst photography with
+post-alignment). We therefore constructed a fully synthetic dataset
+where the degradation is applied programmatically, giving us perfect
+ground truth, known blur parameters, and controlled experimental
+conditions.
 
 \subsection{Generation Pipeline}
 
-We sourced over 1\,000 clean license plate images from public repositories, covering a variety of plate formats, fonts, and countries. Each source image is resized so that its longest side does not exceed 512 pixels. From each source image, we generate three variants by applying one of three blur types:
+We sourced 1\,001 clean license plate images from public repositories,
+covering a variety of plate formats, fonts, and countries. Each source
+image is resized so that its longest side does not exceed 512\,px. From
+each source image we generate three variants by applying one of three
+blur types:
 
 \begin{itemize}[nosep]
-  \item \textbf{Gaussian blur:} isotropic smoothing with $\sigma \sim \mathcal{U}(1, 5)$,
-  \item \textbf{Motion blur:} linear kernel of length $L \sim \mathcal{U}(5, 25)$\,px at angle $\theta \sim \mathcal{U}(0, 360)$\textdegree,
-  \item \textbf{Defocus blur:} circular disk kernel of radius $r \sim \mathcal{U}(3, 10)$\,px.
+  \item \textbf{Gaussian blur:} isotropic smoothing, $\sigma \sim \mathcal{U}(1, 5)$,
+  \item \textbf{Motion blur:} linear kernel of length $L \sim \mathcal{U}(5, 25)$\,px, angle $\theta \sim \mathcal{U}(0, 360)$\textdegree,
+  \item \textbf{Defocus blur:} circular disk of radius $r \sim \mathcal{U}(3, 10)$\,px.
 \end{itemize}
 
-After blurring, each image undergoes realistic degradation: additive Gaussian noise ($\sigma \sim \mathcal{U}(5, 15)$) followed by JPEG compression at quality $q \sim \mathcal{U}(50, 85)$. This two-stage degradation simulates the noise and compression artifacts present in real surveillance footage.
+After blurring, each image undergoes realistic degradation: additive
+Gaussian noise ($\sigma \sim \mathcal{U}(5, 15)$) followed by JPEG
+compression at quality $q \sim \mathcal{U}(50, 85)$. The two-stage
+degradation simulates the noise and compression artifacts present in
+real surveillance footage.
 
 \subsection{Dataset Statistics}
 
-The final dataset contains 3\,003 blurry/sharp pairs (1\,001 source images $\times$ 3 blur variants). The dataset is split by \textit{source image} to prevent data leakage---no sharp image appears in more than one partition:
+The final dataset contains 3\,003 blurry/sharp pairs (1\,001 source
+images $\times$ 3 blur variants). The split is by \textit{source image}
+to prevent data leakage: no sharp plate appears in more than one
+partition.
 
 \begin{table}[H]
 \centering
@@ -88,9 +162,14 @@ Test       &   453 & 15\% & 151 \\
 \textbf{Total} & \textbf{3\,003} & 100\% & 1\,001 \\
 \bottomrule
 \end{tabular}
-\caption{Dataset split statistics. Each split contains an equal number of Gaussian, motion, and defocus blur samples.}
+\caption{Dataset split statistics. Each split contains an equal number of Gaussian, motion, and defocus samples.}
 \label{tab:dataset}
 \end{table}
+
+\paragraph{Reproducibility.} The dataset is too large for Git (3\,003 PNG
+pairs). Clean source plates and generated splits are published alongside
+the repository (link in the README). The generation script is
+deterministic given \texttt{seed: 42} in \texttt{config/default.yaml}.
 
 % ============================================================
 \section{Methodology}
@@ -98,116 +177,179 @@ Test       &   453 & 15\% & 151 \\
 
 \subsection{Blur Parameter Estimation via FFT}
 
-Motion blur creates a characteristic pattern in the Fourier domain: dark bands of near-zero magnitude running perpendicular to the direction of motion. We exploit this structure to estimate the PSF parameters \textit{blindly}, without any prior knowledge of the kernel.
+Motion blur creates a characteristic pattern in the Fourier domain: dark
+bands of near-zero magnitude running perpendicular to the direction of
+motion. We exploit this structure to estimate PSF parameters
+\textit{blindly}, without prior knowledge of the kernel. The estimator
+assumes motion blur throughout; we discuss the consequence of this
+assumption in \S\ref{sec:crosstype}.
 
 \subsubsection{Angle Estimation}
 
-We compute the 2-D FFT magnitude spectrum of the grayscale blurry image, apply a log transform, and shift the zero-frequency component to the centre. We then sweep 180 radial lines (at 1\textdegree{} increments) through the spectrum and compute the mean magnitude along each. The angle yielding the \textit{minimum} mean corresponds to the dark-band orientation, which is perpendicular to the blur direction:
-
+We compute the 2-D FFT magnitude spectrum of the grayscale blurry image,
+apply a log transform, and shift the zero-frequency component to the
+centre. We then sweep 180 radial lines (1\textdegree\ increments)
+through the spectrum and compute the mean magnitude along each. The
+angle yielding the minimum mean corresponds to the dark-band
+orientation, perpendicular to the blur direction:
 \begin{equation}
   \theta_{\text{blur}} = \left(\arg\min_{\alpha \in [0, 180)} \bar{M}(\alpha)\right) + 90\degree,
 \end{equation}
-
-where $\bar{M}(\alpha)$ is the mean magnitude along the radial line at angle $\alpha$.
+where $\bar{M}(\alpha)$ is the mean magnitude along the radial line at
+angle $\alpha$.
 
 \subsubsection{Length Estimation}
 
-Along the detected dark-band direction, we extract a 1-D intensity profile from the centre outward and locate periodic minima via peak detection. The average spacing between these minima gives the kernel length via:
-
+Along the detected dark-band direction, we extract a 1-D intensity
+profile from the centre outward and locate periodic minima via peak
+detection (\texttt{scipy.signal.find\_peaks}, minimum distance 3\,px,
+prominence threshold 0.3). The mean spacing between minima gives the
+kernel length:
 \begin{equation}
   L \approx \frac{N}{\Delta},
 \end{equation}
+where $N$ is the image dimension and $\Delta$ is the mean inter-minimum
+distance in frequency pixels. When fewer than two minima are detected,
+the estimator falls back to $L = 10$.
 
-where $N$ is the image dimension and $\Delta$ is the mean inter-minimum distance in frequency pixels.
-
-On a controlled test image with ground-truth parameters (length\,=\,15\,px, angle\,=\,30\textdegree), the estimator recovers $\approx$15\,px and $\approx$30\textdegree, confirming the approach under ideal conditions. However, as our experimental results show, the estimator's accuracy degrades substantially in the presence of noise and compression artifacts, which is a central finding of this project.
+On a controlled test image with ground-truth parameters ($L=15$\,px,
+$\theta=30\degree$), the estimator recovers $\approx 15$\,px and
+$\approx 30\degree$, confirming the approach under ideal conditions.
+As our experimental results show, accuracy degrades substantially in
+the presence of noise and compression --- a central finding of this
+project.
 
 \subsection{Classical Deconvolution Methods}
 
-Given the estimated PSF $\hat{k}$, we apply five deconvolution methods in order of increasing sophistication. All frequency-domain methods operate by pointwise division in the Fourier domain, where convolution becomes multiplication.
+Given the estimated PSF $\hat{k}$, we apply five deconvolution methods
+in order of increasing sophistication. All frequency-domain methods
+operate by pointwise division in the Fourier domain, where convolution
+becomes multiplication.
 
-\subsubsection{Inverse Filter (Baseline)}
+\subsubsection{Inverse Filter (Pedagogical Baseline)}
 
-The most direct approach applies the pseudo-inverse of the PSF transfer function:
 \begin{equation}
   \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + \epsilon} \cdot Y(u,v),
 \end{equation}
-where $K^*$ is the complex conjugate and $\epsilon = 10^{-3}$ regularises frequencies where $|K(u,v)| \to 0$. This is included as a pedagogical baseline: it demonstrates that near-direct inversion catastrophically amplifies noise, producing severe ringing artifacts and motivating the need for stronger regularisation such as the Wiener filter.
+with $\epsilon = 10^{-3}$ regularising near-zero frequencies. This is
+included as a \textit{pedagogical} baseline only: direct inversion
+catastrophically amplifies noise, motivating the stronger regularisation
+of Wiener and CLS. The inverse filter's results in this report
+(SSIM $\approx 0.01$) should be read as ``what deblurring looks like
+without regularisation,'' not as a practical method.
 
 \subsubsection{Wiener Filter}
 
-The Wiener filter is the minimum mean-square-error linear estimator when the power spectra of the signal and noise are known:
+The Wiener filter is the minimum mean-square-error linear estimator
+when the power spectra of signal and noise are known:
 \begin{equation}
   \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + S_n/S_x} \cdot Y(u,v),
   \label{eq:wiener}
 \end{equation}
-where $K^*$ is the complex conjugate of the PSF transfer function and $S_n/S_x$ is the noise-to-signal power ratio (set to 0.05 in our implementation). The term $S_n/S_x$ acts as a frequency-dependent regulariser: at frequencies where $|K|^2 \gg S_n/S_x$, the filter behaves like the inverse filter; where $|K|^2 \ll S_n/S_x$, the filter suppresses the output to avoid noise amplification. This is the core deconvolution method from Lab~2.
+with $S_n/S_x = 0.05$ in our implementation. The ratio acts as a
+frequency-dependent regulariser: where $|K|^2 \gg S_n/S_x$, the filter
+behaves like the inverse filter; where $|K|^2 \ll S_n/S_x$, it suppresses
+the output to avoid noise amplification. This is the core deconvolution
+method from Lab 2.
 
 \subsubsection{Unsupervised Wiener Filter}
 
-The unsupervised variant removes the need to manually specify the noise-to-signal ratio. It uses an iterative Gibbs sampling procedure to jointly estimate the restored image and the noise statistics from the data alone, yielding Wiener-quality results without manual tuning of the balance parameter. This makes the method more practical for automated pipelines where noise characteristics are unknown.
+The unsupervised variant removes manual tuning of the noise-to-signal
+ratio, using iterative Gibbs sampling to jointly estimate the restored
+image and noise statistics from the data alone.
 
 \subsubsection{Richardson--Lucy Deconvolution}
 
-Richardson--Lucy (RL) deconvolution is an iterative Bayesian method that maximises the likelihood of the observed image under a Poisson noise model \cite{richardson1972,lucy1974}. The multiplicative update rule at iteration $t$ is:
+Richardson--Lucy (RL) is an iterative Bayesian method that maximises the
+likelihood of the observed image under a Poisson noise model
+\cite{richardson1972, lucy1974}:
 \begin{equation}
   \hat{x}^{(t+1)} = \hat{x}^{(t)} \cdot \left( k^T \ast \frac{y}{k \ast \hat{x}^{(t)}} \right),
   \label{eq:rl}
 \end{equation}
-where $k^T$ denotes the transposed (flipped) PSF. Unlike Wiener, RL does not require knowledge of the noise power spectrum and preserves non-negativity at each iteration. We use 30 iterations as a compromise between convergence and noise amplification---too many iterations cause the algorithm to fit noise.
+where $k^T$ is the transposed PSF. Unlike Wiener, RL does not require
+knowledge of the noise power spectrum and preserves non-negativity at
+each iteration. We use 30 iterations as a compromise between convergence
+and noise amplification.
 
 \subsubsection{Constrained Least Squares (CLS) Filter}
 
-The CLS filter minimises a smoothness criterion subject to a data-fidelity constraint:
+The CLS filter minimises a smoothness criterion under a data-fidelity
+constraint:
 \begin{equation}
   \min_f \|Lf\|^2 \quad \text{subject to} \quad \|g - Hf\|^2 = \|n\|^2,
 \end{equation}
-where $L$ is the discrete Laplacian operator and $H$ is the convolution matrix of the PSF. The closed-form frequency-domain solution is:
+with $L$ the discrete Laplacian and $H$ the PSF convolution matrix.
+The frequency-domain closed form is:
 \begin{equation}
   \hat{X}(u,v) = \frac{K^*(u,v)}{|K(u,v)|^2 + \gamma\,|P(u,v)|^2} \cdot Y(u,v),
   \label{eq:cls}
 \end{equation}
-where $P$ is the DFT of the Laplacian kernel and $\gamma = 0.01$ controls the regularisation strength. The use of the Laplacian as a regulariser is particularly noteworthy: it penalises rapid intensity variations while preserving genuine edges, connecting directly to the edge detection concepts from Lab~3.
+with $\gamma = 0.01$ and $P$ the DFT of the Laplacian kernel. Using the
+Laplacian as regulariser connects directly to the edge detection
+concepts of Lab 3. In our blind-estimation evaluation, CLS
+under-performs Wiener (\S\ref{sec:primary}); we therefore treat it
+alongside the inverse filter as a pedagogical comparison rather than as
+a competitive method.
 
 \subsection{Post-Processing: Total Variation Denoising}
 
-After deconvolution, residual ringing artifacts and noise remain. We apply Total Variation (TV) denoising using the Chambolle algorithm \cite{chambolle2004}:
-\begin{equation}
-  \min_u \int |\nabla u| + \frac{1}{2\lambda}\|u - f\|^2,
-\end{equation}
-where the first term penalises the total variation (sum of gradient magnitudes) and the second enforces fidelity to the deconvolved image $f$. TV preserves sharp edges while smoothing flat regions, making it well-suited for suppressing ringing artifacts. We use $\lambda = 0.05$.
+After deconvolution, residual ringing artifacts and noise remain. We
+provide Total Variation (TV) denoising via the Chambolle algorithm
+\cite{chambolle2004} as an optional post-processing step, using
+$\lambda = 0.05$. We do \textit{not} report a quantitative ablation of
+TV in this submission: a controlled TV on/off comparison across the full
+test set is deferred to future work, so TV is omitted from the headline
+tables below. It remains available in the codebase for qualitative
+inspection.
 
 % ============================================================
 \section{Results}
 % ============================================================
 
-\subsection{Test Set Evaluation}
+\subsection{Primary Evaluation: Motion Blur (Pipeline Target)}
+\label{sec:primary}
 
-Table~\ref{tab:results} summarises the performance of each method on the full test set (453 images across all three blur types), using blind FFT-based PSF estimation.
+The FFT estimator assumes motion blur. The motion-blur subset is
+therefore the pipeline's intended evaluation domain. Table
+\ref{tab:motion} reports performance on the 151 motion-blurred test
+images.
 
 \begin{table}[H]
 \centering
-\begin{tabular}{lcc}
+\begin{tabular}{lcc c}
 \toprule
-\textbf{Method} & \textbf{PSNR (dB)} & \textbf{SSIM} \\
+\textbf{Method} & \textbf{PSNR (dB)} & \textbf{SSIM} & \textbf{$\Delta$PSNR vs blurry} \\
 \midrule
-Blurry (input)                & 22.77 & 0.566 \\
-Inverse filter                & 10.33 & 0.013 \\
-Wiener (estimated PSF)        & 15.74 & 0.226 \\
-Unsupervised Wiener           & 12.11 & 0.103 \\
-Richardson--Lucy ($n=30$)     & 12.43 & 0.173 \\
-CLS filter ($\gamma=0.01$)   & 11.02 & 0.043 \\
+\textbf{Blurry (input)}             & \textbf{23.03} & \textbf{0.577} & --- \\
+Wiener (est. PSF)                   & 14.64 & 0.189 & $-$8.39 \\
+Richardson--Lucy ($n=30$)           & 12.67 & 0.163 & $-$10.36 \\
+Unsupervised Wiener                 & 10.88 & 0.082 & $-$12.15 \\
+CLS ($\gamma=0.01$)$^{\dagger}$     & 10.26 & 0.033 & $-$12.77 \\
+Inverse$^{\dagger}$                 &  9.61 & 0.009 & $-$13.42 \\
 \bottomrule
 \end{tabular}
-\caption{Average PSNR and SSIM on the full 453-image test set (blind PSF estimation). All deconvolution methods score below the blurry baseline, demonstrating the sensitivity of classical deconvolution to PSF estimation errors under realistic degradation.}
-\label{tab:results}
+\caption{Performance on the motion-blur subset (151 images), using
+blind FFT PSF estimation. Every method degrades quality below the
+blurry baseline. Wiener is the least-damaging method but still loses
+$-$8.4\,dB PSNR. $^{\dagger}$Pedagogical baselines; SSIM near zero
+indicates the output is not semantically interpretable as a restored
+plate.}
+\label{tab:motion}
 \end{table}
 
-All methods score below the blurry baseline. This is a central finding: the combination of blind PSF estimation errors, additive noise, and JPEG compression artifacts causes deconvolution to introduce more distortion than it removes. Among the methods, the Wiener filter performs best (15.74\,dB), followed by Richardson--Lucy (12.43\,dB), while the inverse filter performs worst (10.33\,dB), as predicted by theory.
+\paragraph{Headline result.} On the pipeline's intended target, the best
+classical method (Wiener with blind PSF) loses 8.4\,dB PSNR vs.\ doing
+nothing. This is not a failure of implementation; as \S\ref{sec:oracle}
+shows, identical Wiener code recovers 2.2\,dB when the PSF is known.
+The failure is upstream, in the PSF estimator.
 
-\subsection{Per-Blur-Type Analysis}
+\subsection{Cross-Type Evaluation: Cost of Blur-Type Misclassification}
+\label{sec:crosstype}
 
-Since the FFT estimator assumes motion blur, we expect it to perform best on motion-blurred images and worst on Gaussian- and defocus-blurred images (where the estimated motion PSF does not match the actual blur kernel). Table~\ref{tab:pertype} confirms this expectation, though the differences between blur types are smaller than anticipated.
+What happens when our motion-PSF estimator is applied to non-motion
+blur? Table \ref{tab:pertype} reports per-type performance across all
+three subsets (151 images each).
 
 \begin{table}[H]
 \centering
@@ -218,22 +360,44 @@ Since the FFT estimator assumes motion blur, we expect it to perform best on mot
 \textbf{Method} & Motion & Gaussian & Defocus & Motion & Gaussian & Defocus \\
 \midrule
 Blurry (input)    & 23.03 & 23.24 & 22.03 & 0.577 & 0.596 & 0.525 \\
-Inverse filter    &  9.61 & 10.55 & 10.84 & 0.009 & 0.012 & 0.020 \\
 Wiener (est.)     & 14.64 & 15.86 & 16.72 & 0.189 & 0.229 & 0.258 \\
-Unsup.\ Wiener    & 10.88 & 12.19 & 13.28 & 0.082 & 0.102 & 0.124 \\
 Richardson--Lucy  & 12.67 & 12.54 & 12.08 & 0.163 & 0.184 & 0.173 \\
+Unsup.\ Wiener    & 10.88 & 12.19 & 13.28 & 0.082 & 0.102 & 0.124 \\
 CLS filter        & 10.26 & 11.04 & 11.75 & 0.033 & 0.038 & 0.059 \\
+Inverse filter    &  9.61 & 10.55 & 10.84 & 0.009 & 0.012 & 0.020 \\
 \bottomrule
 \end{tabular}
-\caption{Per-blur-type results (151 images each). The FFT estimator targets motion blur, yet all blur types show similar degradation, indicating that noise and compression dominate over PSF mismatch.}
+\caption{Per-blur-type results (151 images each). Motion is the target; Gaussian and Defocus are included only to quantify the cost of applying a motion-PSF estimator to the wrong blur type.}
 \label{tab:pertype}
 \end{table}
 
-An unexpected observation: the Wiener filter actually achieves its \textit{highest} PSNR on defocus-blurred images (16.72\,dB) rather than motion-blurred images (14.64\,dB). This counter-intuitive result is explained by the nature of PSF mismatch: motion blur produces directional nulls in the frequency spectrum, and small errors in the estimated angle or length cause deconvolution to amplify noise at incorrect null locations. Defocus blur, being isotropic, does not exhibit this directional sensitivity---the mismatched motion PSF applies a mild, non-destructive correction rather than a catastrophic directional inversion.
+\paragraph{An apparent paradox.} Wiener achieves its \textit{highest}
+PSNR on defocus (16.72\,dB), \textit{above} its motion-blur score
+(14.64\,dB). Richardson--Lucy shows the opposite trend. How?
+
+The paradox is resolved by recognising that the estimator does not
+actually recover a defocus PSF --- it outputs a linear motion kernel
+regardless of input. When this mismatched kernel is applied to an
+isotropic defocus image, its directional inversion has no signal to
+latch onto, so the filter behaves \textit{close to identity}: it does
+comparatively little damage. For motion blur, the estimator produces a
+kernel closer to the truth, so the filter acts more aggressively ---
+and a small error in angle or length now inverts the wrong directional
+nulls, amplifying noise in the wrong places. Wiener's defocus
+``win'' is therefore not a demonstration of robustness, but of
+near-identity behaviour under extreme PSF mismatch.
+
+Consequently, the cross-type rows in Table \ref{tab:pertype} should not
+be interpreted as method rankings. They quantify the failure cost of a
+missing blur-type classifier upstream of the estimator --- a
+deliberate simplification, acknowledged in Section \ref{sec:limits}.
 
 \subsection{Oracle PSF Validation}
+\label{sec:oracle}
 
-To verify that the deconvolution implementations are correct, we tested the Wiener filter on a controlled scenario: a single clean license plate blurred with a known motion PSF (length\,=\,15\,px, angle\,=\,30\textdegree), with no noise or compression.
+To confirm the deconvolution implementations are correct, we ran Wiener
+on a controlled image with a known motion PSF ($L=15$\,px,
+$\theta=30\degree$), with and without noise.
 
 \begin{table}[H]
 \centering
@@ -245,83 +409,186 @@ Clean blur, oracle PSF   & 21.66 & $+$2.21 vs blurry (19.45) \\
 Noisy blur, oracle PSF   & 21.08 & $+$2.17 vs blurry (18.91) \\
 \bottomrule
 \end{tabular}
-\caption{Wiener filter with oracle (known) PSF. The method improves PSNR by over 2\,dB in both conditions, confirming correct implementation.}
+\caption{Wiener with oracle (known) PSF on a single controlled image. The method improves PSNR by over 2\,dB in both conditions, confirming correct implementation.}
 \label{tab:oracle}
 \end{table}
 
-This confirms that the Wiener filter \textit{does} improve quality when the PSF is accurately known, even in the presence of noise. The gap between oracle and blind performance ($+$2.2\,dB vs.\ $-$7\,dB) quantifies the cost of blind estimation and underscores the importance of PSF accuracy in classical deconvolution.
+\paragraph{Important caveat.} This oracle test is a single image, not a
+distributional evaluation. It demonstrates that the Wiener
+\textit{code} works correctly on a well-behaved input; it does \textbf{not}
+prove that the method would beat the blurry baseline on the full test
+distribution under oracle PSF. A full oracle sweep over the 151 motion
+test images is the most important follow-up experiment and is flagged
+in \S\ref{sec:limits}.
 
-\subsection{Effect of TV Post-Processing}
-
-Applying Total Variation denoising after deconvolution provides modest improvements by suppressing ringing artifacts. With $\lambda = 0.05$, TV denoising improves SSIM while preserving PSNR, confirming that it smooths oscillatory artifacts without destroying recovered detail. The effect is most pronounced after Richardson--Lucy and CLS, which are the methods most prone to ringing due to their iterative and Laplacian-based regularisation, respectively.
+What Table \ref{tab:oracle} does establish is that the 9\,dB gap
+between oracle ($+$2.2\,dB) and blind ($-$8.4\,dB on motion) on
+comparable-difficulty blur is attributable to PSF estimation error, not
+to bugs in the deconvolution code.
 
 \subsection{Visual Comparison}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{../outputs/figures/comparison_grid.png}
-\caption{Visual comparison of deconvolution methods on a motion-blurred license plate. The inverse filter shows severe noise amplification; Wiener produces moderate artifacts; Richardson--Lucy and CLS show characteristic ringing patterns.}
+\caption{Visual comparison on a motion-blurred plate. The inverse filter shows severe noise amplification; Wiener produces moderate ringing; RL and CLS show characteristic oscillation patterns. Visually, the blurry input is the most legible image in this grid --- consistent with the PSNR/SSIM numbers.}
 \label{fig:comparison}
 \end{figure}
+
+% ============================================================
+\section{Why Classical Blind Deblurring Fails Here}
+% ============================================================
+
+Classical deconvolution performs pointwise division in the Fourier
+domain. If the estimated PSF transfer function $\hat{K}(u,v)$ misses
+a spectral null present in the true $K(u,v)$ by even a few pixels,
+$\hat{X}(u,v) = Y(u,v) / \hat{K}(u,v)$ amplifies noise at that null
+location instead of suppressing it. JPEG compression and additive
+noise both introduce high-frequency content that the filter then
+multiplies by a large $1/\hat{K}$ gain, injecting structured artifacts
+with SNR below that of the blurry input.
+
+Three factors compound:
+\begin{itemize}[nosep]
+  \item \textbf{JPEG:} destroys the periodic null structure used by the angle/length estimator;
+  \item \textbf{Additive noise ($\sigma$ up to 15):} raises the magnitude floor in the Fourier domain, hiding dark bands;
+  \item \textbf{Parameter errors:} a 10\% length error translates to null misalignment that grows with frequency.
+\end{itemize}
+
+This is a well-documented limitation of frequency-domain blind
+deconvolution \cite{gonzalez2018, levin2011} and is the principal
+empirical motivation for modern learning-based approaches (e.g.\
+blur-kernel priors, deep image priors, and end-to-end networks). Our
+project explicitly excludes learned methods, so the negative result
+reported here is the honest boundary of what classical techniques
+achieve under realistic degradation.
 
 % ============================================================
 \section{Course Concept Connections}
 % ============================================================
 
-This project integrates techniques from all three laboratory sessions:
-
 \begin{itemize}
-  \item \textbf{Lab~1 --- Convolution:} Image blur is modelled as convolution with a PSF (Eq.~\ref{eq:degradation}). Every deconvolution method in this project reverses this operation, either directly in the frequency domain (inverse, Wiener, CLS) or iteratively in the spatial domain (Richardson--Lucy). The project is, at its core, an exercise in understanding and inverting convolution.
-
-  \item \textbf{Lab~2 --- Fourier Analysis and Frequency Domain:} The FFT-based blur estimation directly applies frequency-domain analysis to extract physical parameters from spectral patterns. The Wiener filter (Eq.~\ref{eq:wiener}) and CLS filter (Eq.~\ref{eq:cls}) are defined and computed entirely in the frequency domain, where convolution becomes multiplication and deconvolution becomes regularised division. The frequency spectra visualised in the notebook show how blur attenuates high frequencies and how deconvolution attempts to recover them.
-
-  \item \textbf{Lab~3 --- Edge Detection:} The CLS filter uses the Laplacian operator---the same second-derivative kernel used for edge detection---as its regulariser. By penalising the Laplacian norm, CLS encourages solutions where edges are sharp and flat regions are smooth. We also use Canny and Sobel edge maps on blurry vs.\ restored images as a visual quality measure: strong, continuous edges indicate successful restoration.
+  \item \textbf{Lab 1 --- Convolution:} Image blur is modelled as
+    convolution with a PSF (Eq.~\ref{eq:degradation}). Every deconvolution
+    method in this project reverses this operation, either directly in
+    the frequency domain (inverse, Wiener, CLS) or iteratively in the
+    spatial domain (Richardson--Lucy).
+  \item \textbf{Lab 2 --- Fourier Analysis:} The FFT-based estimator
+    extracts physical parameters from spectral patterns. Wiener
+    (Eq.~\ref{eq:wiener}) and CLS (Eq.~\ref{eq:cls}) are defined and
+    computed in the frequency domain, where convolution becomes
+    multiplication and deconvolution becomes regularised division.
+  \item \textbf{Lab 3 --- Edge Detection:} The CLS filter uses the
+    Laplacian operator --- the same second-derivative kernel used for
+    edge detection --- as its regulariser. Canny and Sobel edge maps on
+    blurry vs.\ restored images serve as a visual quality check.
 \end{itemize}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{../outputs/figures/fft_analysis.png}
-\caption{FFT magnitude spectra of blurry, deblurred, and ground-truth images. Blur attenuates high-frequency components (outer regions); deconvolution partially recovers them. This directly applies frequency-domain analysis from Lab~2.}
+\caption{FFT magnitude spectra of blurry, deblurred, and ground-truth images. Blur attenuates high-frequency components; deconvolution attempts to recover them (Lab 2 frequency-domain analysis).}
 \label{fig:fft}
 \end{figure}
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{../outputs/figures/edge_comparison.png}
-\caption{Canny and Sobel edge maps for blurry, deblurred, and clean images. Blur weakens gradient responses; deconvolution restores detectable edge structure. This connects to Lab~3 edge detection concepts.}
+\caption{Canny and Sobel edge maps. Blur weakens gradient responses; deconvolution outputs show restored gradient structure, though quantitative fidelity is lower (Lab 3 edge detection).}
 \label{fig:edges}
 \end{figure}
 
 % ============================================================
-\section{Challenges and Limitations}
+\section{Limitations and Future Work}
+\label{sec:limits}
 % ============================================================
 
-\textbf{PSF estimation is the bottleneck.} The oracle-vs-blind comparison (Table~\ref{tab:oracle}) demonstrates a 9\,dB gap between known and estimated PSF performance. This confirms that PSF estimation accuracy---not the deconvolution algorithms---is the limiting factor. A production pipeline would require a more sophisticated estimator, potentially combining blur-type classification with type-specific parameter estimation.
+We flag, in order of priority, the gaps between what we built and what a
+production-ready classical deblurring system would require.
 
-\textbf{Noise and compression amplification.} Deconvolution amplifies all frequency components, including noise and JPEG blocking artifacts. The additive noise ($\sigma$ up to 15) and lossy compression (quality as low as 50) in our degradation pipeline create a challenging scenario where deconvolution consistently reduces quality. This highlights a fundamental trade-off: more aggressive deblurring recovers spatial detail but amplifies artifacts.
+\textbf{(1) Downstream OCR evaluation is missing.} Our metrics (PSNR,
+SSIM) measure image fidelity, not plate readability. A proper
+plate-deblurring evaluation would report character error rate (CER) and
+plate-read accuracy on a tesseract- or easyocr-based recogniser,
+computed on blurry vs.\ restored inputs. Until that is done, our numbers
+upper-bound restoration quality but do not demonstrate task utility.
 
-\textbf{Blur-type assumption.} Our FFT estimator assumes motion blur, but the dataset contains three blur types. A robust pipeline would first classify the blur type (motion, Gaussian, or defocus) before selecting the appropriate PSF model and estimator.
+\textbf{(2) Oracle sweep across full test distribution.} Our oracle
+validation covers a single image (Table \ref{tab:oracle}). The stronger
+claim --- ``classical methods work when PSF is known, on realistic
+noisy data'' --- requires running oracle Wiener on all 151 motion test
+images with their true PSFs. This is straightforward to add and is the
+single most important follow-up experiment.
 
-\textbf{Synthetic-to-real gap.} Our dataset applies spatially uniform blur, whereas real surveillance footage exhibits spatially varying blur and more complex degradation. Bridging this gap would require real blurry/sharp pairs or spatially adaptive PSF models.
+\textbf{(3) Missing blur-type classifier.} The estimator assumes motion
+blur. A production pipeline would first classify blur type (motion,
+Gaussian, defocus) and dispatch to the appropriate PSF model. Our
+cross-type results (Table \ref{tab:pertype}) quantify the cost of
+omitting this stage.
 
-\textbf{Parameter sensitivity.} The performance of each method depends on hyperparameters (Wiener balance, RL iteration count, CLS $\gamma$, TV weight) that are dataset-dependent. An adaptive parameter selection strategy would improve robustness.
+\textbf{(4) TV ablation not quantified.} TV denoising is implemented
+but not evaluated with/without comparison in this submission. A
+controlled ablation would confirm whether TV provides measurable
+SSIM improvement on our test set.
+
+\textbf{(5) No variance reporting.} All results are means over 151 or
+453 images; no standard deviations, confidence intervals, or paired
+significance tests are reported. Differences between
+similarly-performing methods (RL 12.67 vs CLS 10.26 on motion) should
+not be over-interpreted without spread.
+
+\textbf{(6) Synthetic-to-real gap.} Our dataset applies spatially
+uniform blur; real surveillance footage exhibits spatially varying blur
+and more complex degradation. A small real-world test set would help
+calibrate the synthetic results.
+
+\textbf{(7) Parameter sensitivity.} Hyperparameters (Wiener balance, RL
+iterations, CLS $\gamma$, TV weight, peak-finder prominence) are fixed
+rather than adaptive. Sensitivity sweeps would strengthen the
+conclusions.
 
 % ============================================================
 \section{Conclusion}
 % ============================================================
 
-We built a complete blind deblurring pipeline for license plate restoration using exclusively classical computer vision techniques. The system performs FFT-based blur estimation, applies five deconvolution methods of increasing sophistication, and finishes with TV denoising.
+We built a complete classical blind deblurring pipeline: FFT-based PSF
+estimation, five deconvolution methods of increasing sophistication, and
+optional TV post-processing. On the pipeline's target domain (motion
+blur) with realistic degradation, all methods reduce image fidelity
+below the blurry baseline; Wiener is the least-damaging, at $-$8.4\,dB
+PSNR.
 
-The main finding is the critical importance of PSF estimation accuracy. With known PSF, the Wiener filter improves PSNR by over 2\,dB. With blind estimation on a realistically degraded dataset, all methods degrade quality below the blurry baseline. This result, while initially counter-intuitive, faithfully demonstrates the fundamental sensitivity of classical deconvolution---a well-known limitation in the image restoration literature that motivates ongoing research into robust blind deconvolution and learned priors.
+Oracle-PSF validation on a controlled image confirms the methods are
+correctly implemented and improve quality when the kernel is known. The
+gap between oracle and blind performance quantifies the cost of PSF
+estimation error under noise and JPEG compression --- a well-known
+limitation of classical deconvolution that motivates the learned
+approaches we deliberately excluded.
 
-The comparison across methods spans the full landscape of classical deconvolution: the inverse filter fails due to noise amplification; the Wiener filter provides the best regularised estimate; the unsupervised Wiener eliminates manual tuning; Richardson--Lucy offers an iterative spatial-domain alternative; and CLS combines frequency-domain efficiency with Laplacian edge preservation. Together, these methods demonstrate how the convolution, Fourier analysis, and edge detection concepts from Labs~1--3 apply to a real-world restoration problem.
+Rather than present this as a failure, we consider it the central
+finding: \textit{when you hold the degradation model honest (noise,
+compression, realistic blur range) and refuse to fall back on learned
+priors, classical blind deconvolution does not recover license plates
+from surveillance-grade inputs.} That is a clean, useful result ---
+and it maps directly onto what the image-restoration literature has
+been saying for three decades.
 
-\begin{thebibliography}{6}
+The methods surveyed span the full classical landscape: inverse
+(unregularised), Wiener (optimal linear with known statistics),
+unsupervised Wiener (auto noise estimation), Richardson--Lucy
+(iterative Bayesian), and CLS (Laplacian-regularised). Together, they
+apply and extend every core concept from Labs 1--3: convolution,
+Fourier-domain filtering, and edge detection. The next step --- OCR
+evaluation and a full oracle sweep --- is the natural continuation of
+this work.
+
+\begin{thebibliography}{7}
 \bibitem{wiener} N.~Wiener, \textit{Extrapolation, Interpolation, and Smoothing of Stationary Time Series}, MIT Press, 1949.
 \bibitem{gonzalez2018} R.~C.~Gonzalez and R.~E.~Woods, \textit{Digital Image Processing}, 4th ed., Pearson, 2018.
 \bibitem{richardson1972} W.~H.~Richardson, ``Bayesian-based iterative method of image restoration,'' \textit{J.~Opt.~Soc.~Am.}, vol.~62, no.~1, pp.~55--59, 1972.
 \bibitem{lucy1974} L.~B.~Lucy, ``An iterative technique for the rectification of observed distributions,'' \textit{Astron.~J.}, vol.~79, no.~6, pp.~745--754, 1974.
 \bibitem{chambolle2004} A.~Chambolle, ``An algorithm for total variation minimization and applications,'' \textit{J.~Math.~Imaging Vis.}, vol.~20, no.~1--2, pp.~89--97, 2004.
+\bibitem{levin2011} A.~Levin, Y.~Weiss, F.~Durand, and W.~T.~Freeman, ``Understanding blind deconvolution algorithms,'' \textit{IEEE TPAMI}, vol.~33, no.~12, pp.~2354--2367, 2011.
 \bibitem{skimage} S.~van der Walt et al., ``scikit-image: image processing in Python,'' \textit{PeerJ}, vol.~2, e453, 2014.
 \end{thebibliography}
 

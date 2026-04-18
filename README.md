@@ -65,6 +65,24 @@ Chambolle TV denoising applied after deconvolution to reduce ringing artifacts.
 
 ---
 
+## Dataset Access
+
+The 1,001 clean source plates and the 3,003 generated blurry/sharp pairs are **not tracked in this repository** (too large for Git). They are hosted on Google Drive:
+
+**Clean plates + generated dataset:** <!-- PASTE DRIVE LINK HERE -->
+`https://drive.google.com/...`
+
+After downloading:
+```
+final_project/data/
+├── clean_plates/      # Extract the 1001 clean plate images here
+└── synthetic/         # (optional) pre-generated pairs, OR run generate_dataset.py
+```
+
+Regeneration is deterministic given `seed: 42` in `config/default.yaml`, so you can either download the pre-generated set or reproduce it locally from the clean plates.
+
+---
+
 ## Setup
 
 ```bash
