@@ -8,7 +8,11 @@
 
 ## Overview
 
-Restore sharp, readable license plates from motion-blurred images using classical computer vision techniques: FFT-based blind blur estimation, Wiener filtering, Richardson--Lucy deconvolution, constrained least squares, and Total Variation post-processing.
+A classical, learning-free evaluation of blind deblurring for license plate images. Pipeline: FFT-based blind PSF estimation &rarr; five deconvolution methods (inverse, Wiener, unsupervised Wiener, Richardson--Lucy, CLS) &rarr; optional TV post-processing &rarr; image-fidelity metrics (PSNR, SSIM).
+
+**Key finding.** Under blind PSF estimation with realistic degradation (additive noise + JPEG compression), all classical methods reduce image fidelity below the blurry baseline on the pipeline's target domain (motion blur). Wiener is the least-damaging method but still loses ~8 dB PSNR vs. doing nothing. With an oracle (known) PSF, the same Wiener code gains ~2 dB, confirming the deconvolution is correctly implemented and PSF estimation is the true bottleneck.
+
+See [`report/report.pdf`](report/report.pdf) for the full evaluation and discussion.
 
 ---
 
@@ -34,9 +38,10 @@ final_project/
 ├── outputs/
 │   └── figures/                    # Plots referenced by report and slides
 ├── report/
-│   ├── report.tex                  # Project report (LaTeX)
-│   └── slides.tex                  # Presentation slides (Beamer)
-├── report.pdf                      # Compiled report
+│   ├── report.tex                  # Project report (LaTeX source)
+│   ├── report.pdf                  # Compiled report
+│   ├── slides.tex                  # Presentation slides (Beamer source)
+│   └── slides.pdf                  # Compiled slides
 └── requirements.txt
 ```
 
@@ -45,23 +50,26 @@ final_project/
 ## Tasks Implemented
 
 ### Task 1: Synthetic Dataset Generation
-3,003 paired blurry/sharp images from 1,001 clean plates with three blur types (Gaussian, motion, defocus), additive noise, and JPEG compression.
+3,003 paired blurry/sharp images from 1,001 clean plates. Three blur types (Gaussian, motion, defocus) applied with randomised parameters, followed by additive noise and JPEG compression. Split by source image (70/15/15) to prevent data leakage.
 
-### Task 2: Blur Parameter Estimation via FFT
-Blind estimation of blur angle and length from the Fourier magnitude spectrum. Dark bands perpendicular to blur direction reveal the angle; their spacing gives kernel length.
+### Task 2: Blind Blur Parameter Estimation via FFT
+Estimate blur angle and length from the Fourier magnitude spectrum. The estimator assumes motion blur; report &sect;4.2 quantifies the cost of applying this estimator to non-motion blur as a known methodological limitation.
 
-### Task 3: Classical Deconvolution (5 methods)
-1. **Inverse filter** -- naive baseline, demonstrates noise amplification
-2. **Wiener filter** -- optimal for known PSF and noise statistics
-3. **Unsupervised Wiener** -- auto-estimates noise-to-signal ratio
-4. **Richardson--Lucy** -- iterative Bayesian deconvolution (Poisson model)
-5. **Constrained Least Squares** -- Laplacian-regularised frequency domain filter
+### Task 3: Five Classical Deconvolution Methods
+1. **Inverse filter** -- pedagogical baseline; demonstrates noise amplification
+2. **Wiener filter** -- MMSE-optimal linear estimator, core Lab 2 method
+3. **Unsupervised Wiener** -- auto noise-to-signal estimation via Gibbs sampling
+4. **Richardson--Lucy** -- iterative Bayesian, Poisson noise model
+5. **Constrained Least Squares** -- pedagogical; Laplacian-regularised frequency-domain filter
 
 ### Task 4: Evaluation
-PSNR and SSIM metrics across the full 453-image test set (151 per blur type).
+PSNR and SSIM on the 453-image test set (151 per blur type). Headline results reported on the **motion subset** (the estimator's target). Per-blur-type breakdown and single-image oracle validation in the report.
 
-### Post-Processing: Total Variation Denoising
-Chambolle TV denoising applied after deconvolution to reduce ringing artifacts.
+### Optional: Total Variation Denoising
+Chambolle TV denoising is implemented as an available post-processing step. A quantitative TV on/off ablation is flagged as future work in the report and is **not included in the headline tables**.
+
+### Optional: OCR Demonstration (standalone script)
+`scripts/ocr_demo.py` runs a qualitative EasyOCR comparison (blurry vs.\ Wiener-deblurred) on the three sample plates in `data/samples/` -- no full dataset download needed. Requires `pip install easyocr`. A quantitative CER evaluation across the test set is future work.
 
 ---
 
@@ -69,8 +77,8 @@ Chambolle TV denoising applied after deconvolution to reduce ringing artifacts.
 
 The 1,001 clean source plates and the 3,003 generated blurry/sharp pairs are **not tracked in this repository** (too large for Git). They are hosted on Google Drive:
 
-**Clean plates + generated dataset:** <!-- PASTE DRIVE LINK HERE -->
-`https://drive.google.com/...`
+**Clean plates + generated dataset:** 
+`https://drive.google.com/file/d/1dpV-lcp0q4gqLsrifik2zK-2F2wftVtc/view?usp=drive_link`
 
 After downloading:
 ```

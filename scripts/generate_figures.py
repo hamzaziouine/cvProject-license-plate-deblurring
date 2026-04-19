@@ -180,7 +180,7 @@ for r, (b, s, res) in enumerate(rows_data):
         if r == 0:
             axes[r, c].set_title(label, fontsize=12)
 
-fig.suptitle("Frequency Domain Analysis (FFT Magnitude Spectrum)\nBlur attenuates high frequencies — classical deconvolution recovers them\n(Connects to Lab 2: Frequency Filtering)", fontsize=14, weight="bold", y=0.98)
+fig.suptitle("Frequency Domain Analysis (FFT Magnitude Spectrum)\nBlurry vs. Wiener-deblurred (est. PSF) vs. Clean\n(Connects to Lab 2: Frequency Filtering)", fontsize=14, weight="bold", y=0.98)
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 fig.savefig(FIGURES / "fft_analysis.png", dpi=150, bbox_inches="tight")
 plt.close(fig)
@@ -209,7 +209,7 @@ for r, (b, s, res) in enumerate(rows_data):
         if r == 0:
             axes[r, c].set_title(label, fontsize=11)
 
-fig.suptitle("Edge Detection Comparison: Canny & Sobel\nDeblurring restores edges lost to blur\n(Connects to Lab 3: Edge Detection)", fontsize=14, weight="bold", y=0.98)
+fig.suptitle("Edge Detection Comparison: Canny & Sobel\nBlurry vs. Wiener-deblurred (est. PSF) vs. Clean\n(Connects to Lab 3: Edge Detection)", fontsize=14, weight="bold", y=0.98)
 plt.tight_layout(rect=[0, 0, 1, 0.96])
 fig.savefig(FIGURES / "edge_comparison.png", dpi=150, bbox_inches="tight")
 plt.close(fig)

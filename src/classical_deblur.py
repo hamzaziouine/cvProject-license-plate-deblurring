@@ -54,8 +54,8 @@ def unsupervised_wiener_deblur(blurry_image, psf):
 def richardson_lucy_deblur(blurry_image, psf, iterations=30):
     """Richardson-Lucy iterative deconvolution.
 
-    Bayesian approach that maximises the likelihood of the observed image
-    under a Poisson noise model.  More robust to PSF mismatch than Wiener.
+    Iterative Bayesian deconvolution under a Poisson noise model; does not
+    require a known noise power spectrum.
     """
     blurry_image = np.asarray(blurry_image, dtype=np.float64)
     # RL requires strictly positive values
