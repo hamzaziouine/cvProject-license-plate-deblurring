@@ -1,0 +1,40 @@
+
+MOTION BLUR (151 images)
+Method                        PSNR (dB)     SSIM
+------------------------------------------------
+Blurry (input)                    23.03   0.5774
+Inverse filter                     9.61   0.0087
+Wiener (est. PSF)                 14.64   0.1891
+Unsupervised Wiener               10.88   0.0822
+Richardson-Lucy (n=30)            12.67   0.1631
+CLS filter (g=0.01)               10.26   0.0328
+
+GAUSSIAN BLUR (151 images)
+Method                        PSNR (dB)     SSIM
+------------------------------------------------
+Blurry (input)                    23.24   0.5961
+Inverse filter                    10.55   0.0115
+Wiener (est. PSF)                 15.86   0.2294
+Unsupervised Wiener               12.19   0.1018
+Richardson-Lucy (n=30)            12.54   0.1838
+CLS filter (g=0.01)               11.04   0.0384
+
+DEFOCUS BLUR (151 images)
+Method                        PSNR (dB)     SSIM
+------------------------------------------------
+Blurry (input)                    22.03   0.5249
+Inverse filter                    10.84   0.0195
+Wiener (est. PSF)                 16.72   0.2582
+Unsupervised Wiener               13.28   0.1237
+Richardson-Lucy (n=30)            12.08   0.1731
+CLS filter (g=0.01)               11.75   0.0589
+
+OVERALL (453 images)
+Method                        PSNR (dB)     SSIM
+------------------------------------------------
+Blurry (input)                    22.77   0.5661
+Inverse filter                    10.33   0.0132
+Wiener (est. PSF)                 15.74   0.2256
+Unsupervised Wiener               12.11   0.1025
+Richardson-Lucy (n=30)            12.43   0.1733
+CLS filter (g=0.01)               11.02   0.0434

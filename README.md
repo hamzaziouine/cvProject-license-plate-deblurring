@@ -28,7 +28,10 @@ final_project/
 │   ├── evaluation.py               # PSNR, SSIM, FFT, edge detection metrics
 │   └── utils.py                    # Image I/O helpers
 ├── scripts/
-│   └── generate_dataset.py         # Generate synthetic blurry/sharp pairs
+│   ├── generate_dataset.py         # Generate synthetic blurry/sharp pairs
+│   ├── evaluate_test_set.py        # Full 453-image test-set evaluation
+│   ├── generate_figures.py         # Build figures used in report/slides
+│   └── ocr_demo.py                 # Qualitative EasyOCR blurry-vs-deblurred demo
 ├── config/
 │   └── default.yaml                # Blur, degradation, split parameters
 ├── data/
@@ -36,7 +39,8 @@ final_project/
 │   ├── splits/                     # train.txt, val.txt, test.txt
 │   └── samples/                    # Example pairs (in git)
 ├── outputs/
-│   └── figures/                    # Plots referenced by report and slides
+│   ├── figures/                    # Plots referenced by report and slides
+│   └── test_set_results.txt        # Per-blur-type PSNR/SSIM reference tables
 ├── report/
 │   ├── report.tex                  # Project report (LaTeX source)
 │   ├── report.pdf                  # Compiled report
@@ -79,6 +83,8 @@ The 1,001 clean source plates and the 3,003 generated blurry/sharp pairs are **n
 
 **Clean plates + generated dataset:** 
 `https://drive.google.com/file/d/1dpV-lcp0q4gqLsrifik2zK-2F2wftVtc/view?usp=drive_link`
+
+(A Google account is required to view/download; alternatively, regenerate locally -- the dataset is deterministic given `seed: 42`.)
 
 After downloading:
 ```

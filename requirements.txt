@@ -8,3 +8,9 @@ scikit-learn>=1.4  # used only for train/val/test splitting in generate_dataset.
 pyyaml>=6.0
 scipy>=1.12
 # Optional: easyocr>=1.7  (OCR readability demo)
+
+# Jupyter stack (for running code/pipeline.ipynb)
+jupyter>=1.0
+notebook>=7.0
+ipykernel>=6.0
+nbconvert>=7.0

@@ -95,7 +95,7 @@ degraded dataset (noise up to $\sigma=15$, JPEG quality down to 50), all
 five deconvolution methods score below the blurry baseline in PSNR and
 SSIM. Oracle-PSF validation on a controlled image confirms the methods
 are correctly implemented and would improve quality if the PSF were
-known. The 9\,dB gap between oracle and blind performance is the cost
+known. The 10.6\,dB gap between oracle and blind performance is the cost
 of blind estimation under noise and compression --- a classical
 limitation documented in the image restoration literature
 \cite{gonzalez2018}, and the motivation for modern deep-learning
@@ -421,7 +421,7 @@ distribution under oracle PSF. A full oracle sweep over the 151 motion
 test images is the most important follow-up experiment and is flagged
 in \S\ref{sec:limits}.
 
-What Table \ref{tab:oracle} does establish is that the 9\,dB gap
+What Table \ref{tab:oracle} does establish is that the 10.6\,dB gap
 between oracle ($+$2.2\,dB) and blind ($-$8.4\,dB on motion) on
 comparable-difficulty blur is attributable to PSF estimation error, not
 to bugs in the deconvolution code.

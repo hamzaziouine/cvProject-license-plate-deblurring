@@ -50,6 +50,9 @@ report/*.toc
 outputs/*.json
 outputs/*.csv
 outputs/*.png
-outputs/*.txt
 outputs/baseline_comparison.png
 !outputs/figures/
+
+# Audit + tooling
+.gitnexus/
+_audit/
