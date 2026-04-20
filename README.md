@@ -79,7 +79,7 @@ Chambolle TV denoising is implemented as an available post-processing step. A qu
 
 ## Dataset Access
 
-The 1,001 clean source plates and the 3,003 generated blurry/sharp pairs are **not tracked in this repository** (too large for Git). They are hosted on Google Drive:
+The 1,001 clean source plates are **not tracked in this repository** (too large for Git). They are hosted on Google Drive:
 
 **Clean plates:** 
 `https://drive.google.com/file/d/1dpV-lcp0q4gqLsrifik2zK-2F2wftVtc/view?usp=drive_link`
