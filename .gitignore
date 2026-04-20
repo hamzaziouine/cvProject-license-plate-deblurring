@@ -56,3 +56,7 @@ outputs/baseline_comparison.png
 # Audit + tooling
 .gitnexus/
 _audit/
+
+# Cheat sheet (local only, not for GitHub)
+report/cheat_sheet.pdf
+report/cheat_sheet.tex
